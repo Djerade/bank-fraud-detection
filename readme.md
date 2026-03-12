@@ -166,15 +166,4 @@ python src/streaming/producer.py
 python src/streaming/consumer_fraud_detector.py
 ```
 
-Les détails exacts dépendront de l’implémentation que tu vas développer.
-
----
-
-### 8. Prochaines étapes
-
-- Définir précisément le **stack technologique** que tu souhaites utiliser (Kafka / Spark / Flink / simple Python, etc.).  
-- Créer l’**environnement Python** et les fichiers de base (`requirements.txt`, structure des dossiers).  
-- Commencer par la **partie offline** (EDA, entraînement modèle), puis connecter la partie **streaming temps réel**.  
-
-Ce `readme.md` te sert de **point de départ** pour documenter ton projet. Tu pourras l’enrichir au fur et à mesure : détails techniques, choix d’architecture, résultats expérimentaux, captures d’écran de dashboards, etc.
 
