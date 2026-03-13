@@ -165,5 +165,6 @@ python src/streaming/producer.py
 ```bash
 python src/streaming/consumer_fraud_detector.py
 ```
+Plan de travail:https://yielding-attempt-7c9.notion.site/PLAN-COMPLET-tape-par-tape-322843a50877800dabc7c13d37ab6f4e?source=copy_link
 
 
