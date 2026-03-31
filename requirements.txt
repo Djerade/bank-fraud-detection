@@ -23,6 +23,3 @@ pydantic==2.9.2
 # --- Streaming / Kafka ---
 kafka-python==2.0.2
 
-# (Optionnel) Spark pour traitement distribué / streaming batch
-pyspark==3.5.3
-

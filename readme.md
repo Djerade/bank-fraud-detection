@@ -1,170 +1,123 @@
-## Détection de Fraude Bancaire en Temps Réel (Big Data & IA)
+# Conception d’un Pipeline Big Data pour la Détection en Temps Réel de Fraudes Financières via l’IA et l’Analyse Prédictive sur Transactions Bancaires Massives
 
-Ce projet consiste à **concevoir et implémenter un pipeline Big Data** capable de **détecter en temps réel les transactions financières frauduleuses**, en exploitant des techniques :
-
-- **d’intelligence artificielle (IA)**  
-- **d’analyse prédictive**  
-- **de traitement de flux massifs de données (streaming)**  
-
-L’objectif est d’illustrer une architecture moderne de détection de fraude, proche des cas d’usage industriels.
+Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **flux** : ingestion de **transactions bancaires** à grande échelle (Kafka), **exploration** et **préparation** des données, et socle **IA / analyse prédictive** (machine learning, API) pour la **détection de fraude en temps réel**.
 
 ---
 
-### 1. Objectifs du projet
+## Objectifs
 
-- **Ingestion temps réel** de transactions bancaires (simulées) depuis un flux de données.  
-- **Prétraitement** et **enrichissement** des événements (normalisation, features, agrégation).  
-- **Scoring en ligne** via un modèle de machine learning pour détecter la probabilité de fraude.  
-- **Déclenchement d’alertes** en temps réel pour les transactions suspectes.  
-- **Stockage** des données et des alertes pour analyse ultérieure (batch / dashboard).
-
----
-
-### 2. Architecture Big Data cible (vue d’ensemble)
-
-Une architecture typique que ce projet vise à démontrer peut être résumée ainsi :
-
-- **Producteur de données**  
-  - Script ou service simulant des **transactions bancaires** (montant, pays, type carte, etc.).  
-- **Bus de messages / système de streaming**  
-  - Par ex. `Apache Kafka` pour transporter les événements de transaction en temps réel.  
-- **Pipeline de traitement**  
-  - Microservice ou job de streaming (Spark Streaming, Flink, Kafka Streams, etc.) qui :  
-    - lit les événements  
-    - les transforme / enrichit  
-    - applique un **modèle de détection de fraude**  
-- **Moteur de scoring IA**  
-  - Modèle de machine learning (par ex. `scikit-learn`, `XGBoost`, ou modèle deep learning)  
-  - Servi soit intégré au job de streaming, soit via un **service d’API REST** de scoring.  
-- **Sorties**  
-  - Flux des transactions labellisées (fraude / non fraude)  
-  - Flux ou base d’**alertes** (NoSQL, Elasticsearch, PostgreSQL, etc.)  
-  - Optionnel : intégration avec un **dashboard** (Grafana, Kibana, outil BI).
-
-> Remarque : cette architecture exacte pourra être simplifiée ou adaptée selon les technologies que tu décideras réellement d’implémenter dans ce dépôt.
+- Ingérer des transactions (jeu **FraudShield** ou futur flux temps réel) vers **Kafka**.
+- Analyser et préparer les données (notebooks, `pandas`, `scikit-learn`, `XGBoost`, etc.).
+- Entraîner et servir un modèle de scoring (pickle / API REST prévue dans les dépendances).
+- Architecture évolutive : producteur → Kafka → consommateur / service de détection (à étendre).
 
 ---
 
-### 3. Technologies envisagées
+## Contenu actuel du dépôt
 
-Selon le périmètre que tu souhaites couvrir, le projet pourra utiliser tout ou partie des briques suivantes :
-
-- **Langage** : Python (recommandé pour IA & data), éventuellement Scala/Java côté streaming.  
-- **Streaming / Message broker** : Apache Kafka (ou équivalent).  
-- **Traitement de flux** :  
-  - Spark Structured Streaming, Flink, Kafka Streams, ou implémentation maison en Python.  
-- **Machine Learning / IA** :  
-  - `pandas`, `scikit-learn`, `imbalanced-learn`, `xgboost` / `lightgbm` ou PyTorch/TensorFlow si besoin.  
-- **Stockage** :  
-  - Base SQL ou NoSQL pour stocker les transactions et les alertes.  
-  - Fichiers Parquet/CSV pour les analyses batch.  
-- **Monitoring & visualisation** (optionnel) :  
-  - Grafana / Kibana / Tableau / Power BI, etc.
+| Élément | Description |
+|---------|-------------|
+| `data/FraudShield_Banking_Data.csv` | Données de transactions et étiquette fraude. |
+| `notebooks/exploration.ipynb` | Chargement, EDA, nettoyage, imputation, features temporelles. |
+| `pipeline/` | **Ingestion Kafka** : `csv_to_kafka.py`, `kafka_consume_sample.py`, `config.py` — voir [pipeline/README.md](pipeline/README.md). |
+| `docker-compose.yml` | Cluster local **ZooKeeper + 3 brokers Kafka** (images Confluent Community). |
+| `scripts/streaming/ingest_csv.sh` | Raccourci pour publier un extrait du CSV vers Kafka. |
+| `requirements.txt` | `pandas`, ML, Jupyter, **kafka-python**, FastAPI / Uvicorn (API). |
 
 ---
 
-### 4. Données et simulation de transactions
+## Architecture cible (vue d’ensemble)
 
-Comme les données réelles de transactions bancaires sont sensibles, le projet peut s’appuyer sur :
-
-- un **jeu de données public** (par ex. dataset de fraude carte bancaire sur Kaggle), et/ou  
-- un **générateur de données synthétiques** qui produit des transactions en temps réel :
-  - identifiant de transaction  
-  - montant, devise  
-  - pays / localisation  
-  - type de marchand  
-  - date / heure  
-  - indicateur de fraude (pour l’entraînement)  
-
-Ces données sont ensuite **streamées** vers le bus de messages pour être traitées par le pipeline.
+1. **Producteur** — envoi des transactions vers Kafka (script `pipeline/csv_to_kafka.py`).
+2. **Kafka** — transport des événements (cluster 3 brokers en local via Docker).
+3. **Traitement / scoring** — consommateur Python, microservice, ou autre moteur (Flink, Kafka Streams…) qui lit le topic, enrichit et score.
+4. **Modèle IA** — entraîné hors ligne ; chargé dans le service de scoring ou l’API REST.
+5. **Sorties** — alertes, stockage, dashboard (à brancher selon le besoin).
 
 ---
 
-### 5. Étapes principales d’implémentation
+## Technologies
 
-1. **Préparation des données & exploration**  
-   - Chargement du dataset historique  
-   - Analyse exploratoire (distribution, corrélation, déséquilibre de classes, etc.)  
-2. **Construction des features & entraînement du modèle**  
-   - Prétraitement (normalisation, encodage, gestion des valeurs manquantes)  
-   - Gestion du déséquilibre (SMOTE, pondération des classes, etc.)  
-   - Entraînement de plusieurs modèles et sélection du meilleur.  
-3. **Mise en production du modèle (serving)**  
-   - Export du modèle entraîné (pickle, ONNX, etc.)  
-   - Exposition via une API REST ou intégration directe dans le job de streaming.  
-4. **Mise en place du pipeline de streaming**  
-   - Producteur : envoi des transactions vers Kafka (ou équivalent)  
-   - Consommateur : lecture du flux, scoring, génération d’alertes.  
-5. **Monitoring & évaluation continue**  
-   - Suivi des scores de fraude, taux de faux positifs / faux négatifs  
-   - Ajustement et ré-entraînement du modèle si nécessaire.
+- **Python** : `pandas`, `numpy`, `scikit-learn`, `imbalanced-learn`, `xgboost`
+- **Notebooks** : JupyterLab
+- **Streaming** : Apache Kafka (`kafka-python`), cluster Docker Compose
+- **API** (optionnelle) : FastAPI, Uvicorn, Pydantic
 
 ---
 
-### 6. Structure du dépôt (proposée)
+## Prérequis
 
-Une structure possible pour ce projet pourrait être :
-
-```text
-bank-fraud-detection/
-├── data/                  # Jeux de données bruts / préparés
-├── notebooks/             # Analyses exploratoires, prototypage modèle
-├── src/
-│   ├── streaming/         # Code de consommation/production du flux
-│   ├── model/             # Entraînement, sauvegarde et chargement du modèle
-│   ├── api/               # (Optionnel) service REST pour le scoring
-│   └── utils/             # Fonctions utilitaires (prétraitement, logs, etc.)
-├── config/                # Fichiers de configuration (Kafka, modèle, etc.)
-├── tests/                 # Tests unitaires et d’intégration
-├── requirements.txt       # Dépendances Python
-└── readme.md              # Ce fichier
-```
-
-Cette arborescence est indicative et pourra être ajustée pendant l’avancement du projet.
+- Python 3.10+ recommandé  
+- Docker et Docker Compose  
+- Git
 
 ---
 
-### 7. Lancement du projet (à adapter quand le code sera présent)
-
-Une fois le code implémenté, les étapes typiques pour exécuter le pipeline seront :
-
-1. **Cloner le dépôt**
+## Installation
 
 ```bash
 git clone <URL_DU_DEPOT>
 cd bank-fraud-detection
-```
-
-2. **Créer et activer un environnement virtuel**
-
-```bash
 python -m venv .venv
-source .venv/bin/activate  # sous Linux / macOS
-```
-
-3. **Installer les dépendances**
-
-```bash
+source .venv/bin/activate   # Linux / macOS
+# ou : .venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 ```
 
-4. **Démarrer l’infrastructure de streaming** (exemple avec Kafka ou docker-compose)
+Les commandes ci-dessous supposent que le répertoire courant est la **racine du dépôt** (pour que `python -m pipeline...` résolve le package `pipeline`).
+
+---
+
+## Démarrage rapide : Kafka + ingestion
+
+1. **Lancer le cluster Kafka**
+
+   ```bash
+   docker compose up -d
+   ```
+
+2. **Publier des transactions** (exemple : 2 000 lignes du CSV)
+
+   ```bash
+   export KAFKA_BOOTSTRAP_SERVERS=localhost:9092,localhost:9093,localhost:9094
+   python -m pipeline.csv_to_kafka --max-rows 2000 --sleep-ms 1
+   ```
+
+3. **Vérifier des messages** sur le topic brut
+
+   ```bash
+   python -m pipeline.kafka_consume_sample --topic bank.transactions.raw --max 5
+   ```
+
+Détails, variables d’environnement et format JSON : **[pipeline/README.md](pipeline/README.md)**.
+
+---
+
+## Exploration des données
 
 ```bash
-docker compose up -d
+jupyter lab
 ```
 
-5. **Lancer le producteur de transactions**
+Ouvrir `notebooks/exploration.ipynb` (chargement du CSV, EDA, nettoyage, etc.).
 
-```bash
-python src/streaming/producer.py
+---
+
+## Structure du dépôt
+
+```text
+bank-fraud-detection/
+├── data/                      # Jeu FraudShield (CSV)
+├── notebooks/                 # Analyses et préparation (Jupyter)
+├── pipeline/                  # Ingestion Kafka + config + README
+├── scripts/streaming/         # Scripts shell (ex. ingest_csv.sh)
+├── docker-compose.yml         # ZooKeeper + 3 brokers Kafka
+├── requirements.txt
+└── readme.md                  # Ce fichier
 ```
 
-6. **Lancer le consommateur / moteur de détection**
+---
 
-```bash
-python src/streaming/consumer_fraud_detector.py
-```
-Plan de travail:https://yielding-attempt-7c9.notion.site/PLAN-COMPLET-tape-par-tape-322843a50877800dabc7c13d37ab6f4e?source=copy_link
+## Ressources
 
-
+- Plan de travail (Notion) : [PLAN COMPLET — étape par étape](https://yielding-attempt-7c9.notion.site/PLAN-COMPLET-tape-par-tape-322843a50877800dabc7c13d37ab6f4e?source=copy_link)
