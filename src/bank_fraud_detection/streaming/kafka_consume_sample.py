@@ -8,7 +8,7 @@ import sys
 
 from kafka import KafkaConsumer
 
-from pipeline.config import KAFKA_BOOTSTRAP_SERVERS, TOPIC_PROCESSED
+from bank_fraud_detection.config import KAFKA_BOOTSTRAP_SERVERS, TOPIC_PROCESSED
 
 
 def main() -> None:
@@ -35,14 +35,17 @@ def main() -> None:
     except Exception as e:
         if "NoBrokersAvailable" in type(e).__name__ or "NoBrokersAvailable" in str(e):
             print(
-                "Kafka injoignable. Démarrez : docker compose -f docker-compose.kafka.yml up -d",
+                "Kafka injoignable. À la racine du dépôt : docker compose up -d",
                 file=sys.stderr,
             )
         raise
     finally:
         c.close()
     if n == 0:
-        print("Aucun message (topic vide ou timeout). Publiez d'abord avec csv_to_kafka.", file=sys.stderr)
+        print(
+            "Aucun message (topic vide ou timeout). Publiez d'abord avec csv_to_kafka.",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

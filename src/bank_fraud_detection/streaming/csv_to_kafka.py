@@ -3,7 +3,8 @@
 Ingestion : lecture du CSV FraudShield et publication des lignes sur le topic Kafka brut.
 
 Usage:
-  python -m pipeline.csv_to_kafka --bootstrap localhost:9092,localhost:9093,localhost:9094 --max-rows 1000 --sleep-ms 5
+  python -m bank_fraud_detection.streaming.csv_to_kafka \\
+    --bootstrap localhost:9092 --max-rows 1000 --sleep-ms 5
 """
 from __future__ import annotations
 
@@ -17,7 +18,12 @@ import pandas as pd
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
-from pipeline.config import CSV_DEFAULT_PATH, CSV_TO_JSON_FIELD, KAFKA_BOOTSTRAP_SERVERS, TOPIC_RAW
+from bank_fraud_detection.config import (
+    CSV_DEFAULT_PATH,
+    CSV_TO_JSON_FIELD,
+    KAFKA_BOOTSTRAP_SERVERS,
+    TOPIC_RAW,
+)
 
 
 def _row_to_payload(row: pd.Series) -> dict:

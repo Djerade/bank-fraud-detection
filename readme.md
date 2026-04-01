@@ -19,17 +19,21 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 |---------|-------------|
 | `data/FraudShield_Banking_Data.csv` | Données de transactions et étiquette fraude. |
 | `notebooks/exploration.ipynb` | Chargement, EDA, nettoyage, imputation, features temporelles. |
-| `pipeline/` | **Ingestion Kafka** : `csv_to_kafka.py`, `kafka_consume_sample.py`, `config.py` — voir [pipeline/README.md](pipeline/README.md). |
-| `docker-compose.yml` | Cluster local **ZooKeeper + 3 brokers Kafka** (images Confluent Community). |
+| `src/bank_fraud_detection/` | Package Python : `config`, sous-package `streaming/` (CSV → Kafka, consommateur d’exemple, simulateur). |
+| `docs/streaming.md` | Détail du streaming Kafka, variables d’environnement, commandes. |
+| `docker-compose.yml` | **Kafka** local en mode **KRaft** (1 broker, sans ZooKeeper), image Confluent 7.6.1. |
 | `scripts/streaming/ingest_csv.sh` | Raccourci pour publier un extrait du CSV vers Kafka. |
-| `requirements.txt` | `pandas`, ML, Jupyter, **kafka-python**, FastAPI / Uvicorn (API). |
+| `pyproject.toml` | Métadonnée du projet et liste des dépendances (pins). |
+| `requirements.txt` | Installe le package en éditable + dépendances cœur. |
+| `requirements-notebooks.txt` | Même chose + extra `[notebooks]` (JupyterLab, visualisation). |
+| `tests/` | Tests unitaires légers (`unittest`). |
 
 ---
 
 ## Architecture cible (vue d’ensemble)
 
-1. **Producteur** — envoi des transactions vers Kafka (script `pipeline/csv_to_kafka.py`).
-2. **Kafka** — transport des événements (cluster 3 brokers en local via Docker).
+1. **Producteur** — envoi des transactions vers Kafka (`bank_fraud_detection.streaming.csv_to_kafka`).
+2. **Kafka** — transport des événements (broker local via Docker ; un seul nœud en dev).
 3. **Traitement / scoring** — consommateur Python, microservice, ou autre moteur (Flink, Kafka Streams…) qui lit le topic, enrichit et score.
 4. **Modèle IA** — entraîné hors ligne ; chargé dans le service de scoring ou l’API REST.
 5. **Sorties** — alertes, stockage, dashboard (à brancher selon le besoin).
@@ -64,7 +68,13 @@ source .venv/bin/activate   # Linux / macOS
 pip install -r requirements.txt
 ```
 
-Les commandes ci-dessous supposent que le répertoire courant est la **racine du dépôt** (pour que `python -m pipeline...` résolve le package `pipeline`).
+Cela installe le package **`bank_fraud_detection`** en mode éditable depuis `src/` (données, ML, Kafka, API). Pour **Jupyter** et la visualisation :
+
+```bash
+pip install -r requirements-notebooks.txt
+```
+
+Les modules `python -m bank_fraud_detection...` sont disponibles après installation (`pip install -e .` équivaut à `requirements.txt` seul).
 
 ---
 
@@ -79,23 +89,30 @@ Les commandes ci-dessous supposent que le répertoire courant est la **racine du
 2. **Publier des transactions** (exemple : 2 000 lignes du CSV)
 
    ```bash
-   export KAFKA_BOOTSTRAP_SERVERS=localhost:9092,localhost:9093,localhost:9094
-   python -m pipeline.csv_to_kafka --max-rows 2000 --sleep-ms 1
+   export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+   python -m bank_fraud_detection.streaming.csv_to_kafka --max-rows 2000 --sleep-ms 1
    ```
 
 3. **Vérifier des messages** sur le topic brut
 
    ```bash
-   python -m pipeline.kafka_consume_sample --topic bank.transactions.raw --max 5
+   python -m bank_fraud_detection.streaming.kafka_consume_sample --topic bank.transactions.raw --max 5
    ```
 
-Détails, variables d’environnement et format JSON : **[pipeline/README.md](pipeline/README.md)**.
+4. **(Optionnel)** Simuler des transactions synthétiques
+
+   ```bash
+   python -m bank_fraud_detection.streaming.transaction_simulator --count 20 --kafka --sleep-ms 1
+   ```
+
+Détails, variables d’environnement et format JSON : **[docs/streaming.md](docs/streaming.md)**.
 
 ---
 
 ## Exploration des données
 
 ```bash
+pip install -r requirements-notebooks.txt   # une fois, si ce n’est pas déjà fait
 jupyter lab
 ```
 
@@ -103,17 +120,33 @@ Ouvrir `notebooks/exploration.ipynb` (chargement du CSV, EDA, nettoyage, etc.).
 
 ---
 
+## Tests
+
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+---
+
 ## Structure du dépôt
 
 ```text
 bank-fraud-detection/
-├── data/                      # Jeu FraudShield (CSV)
-├── notebooks/                 # Analyses et préparation (Jupyter)
-├── pipeline/                  # Ingestion Kafka + config + README
-├── scripts/streaming/         # Scripts shell (ex. ingest_csv.sh)
-├── docker-compose.yml         # ZooKeeper + 3 brokers Kafka
+├── src/
+│   └── bank_fraud_detection/   # Package installable
+│       ├── config.py           # Kafka, chemins, mapping CSV → JSON
+│       └── streaming/          # Producteurs / consommateur / simulateur
+├── tests/                      # Tests unittest
+├── docs/
+│   └── streaming.md            # Guide Kafka détaillé
+├── data/                       # Jeu FraudShield (CSV)
+├── notebooks/                  # Analyses (Jupyter)
+├── scripts/streaming/          # Raccourcis shell (ex. ingest_csv.sh)
+├── docker-compose.yml          # Kafka KRaft (1 broker, sans ZooKeeper)
+├── pyproject.toml
 ├── requirements.txt
-└── readme.md                  # Ce fichier
+├── requirements-notebooks.txt
+└── readme.md
 ```
 
 ---

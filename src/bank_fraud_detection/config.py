@@ -1,18 +1,18 @@
 """
-Configuration du pipeline streaming (Kafka / chemins / noms de topics).
-Variables d'environnement prioritaires pour l'exécution en conteneur ou sur poste local.
+Configuration partagée : Kafka, chemins données, mapping CSV → JSON des messages.
+Les variables d'environnement priment pour l'exécution en conteneur ou en local.
 """
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
-# Racine du dépôt (parent du dossier pipeline/)
-REPO_ROOT = Path(__file__).resolve().parent.parent
+# Racine du dépôt (parent de src/)
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 KAFKA_BOOTSTRAP_SERVERS: str = os.environ.get(
     "KAFKA_BOOTSTRAP_SERVERS",
-    "localhost:9092,localhost:9093,localhost:9094",
+    "localhost:9092",
 )
 TOPIC_RAW: str = os.environ.get("KAFKA_TOPIC_RAW", "bank.transactions.raw")
 TOPIC_PROCESSED: str = os.environ.get(
