@@ -6,9 +6,18 @@ Génère des payloads JSON avec les mêmes clés que `CSV_TO_JSON_FIELD` dans
 `bank_fraud_detection.config`, pour tests locaux ou publication sur le topic Kafka brut
 (même format que `csv_to_kafka`).
 
-Usage:
-  python -m bank_fraud_detection.streaming.transaction_simulator --count 20
-  python -m bank_fraud_detection.streaming.transaction_simulator --count 100 --kafka --sleep-ms 2
+Vers Kafka, par défaut **une transaction toutes les 5 secondes** (débit type flux).
+Sortie stdout seule : génération en rafale sans pause (sauf si --interval-seconds).
+
+Usage (après ``pip install -e .`` ou ``pip install -r requirements.txt`` depuis la racine du dépôt) :
+
+  python -m simulateur.transaction_simulator --count 20
+  python -m simulateur.transaction_simulator --kafka --count 12
+  python -m simulateur.transaction_simulator --kafka --forever
+  python -m simulateur.transaction_simulator --kafka --interval-seconds 2 --count 50
+
+Sans installation : ``PYTHONPATH=src:. python -m simulateur.transaction_simulator …`` (racine du dépôt).
+Dans l’image Docker Compose, ``PYTHONPATH`` inclut la racine du projet.
 """
 from __future__ import annotations
 
@@ -37,6 +46,9 @@ LOCATIONS = (
 )
 CARD_TYPES = ("Credit", "Debit")
 YES_NO = ("Yes", "No")
+
+# Entre deux envois Kafka si aucun --sleep-ms ni --interval-seconds n'est fourni
+DEFAULT_KAFKA_INTERVAL_SECONDS = 5.0
 
 
 def _random_ip(rng: random.Random) -> str:
@@ -120,43 +132,36 @@ def generate_transaction(
     }
 
 
-def _send_kafka(
-    payloads: list[dict[str, object]],
-    bootstrap: str,
-    topic: str,
+def _resolve_interval_seconds(
     sleep_ms: int,
-) -> None:
-    from kafka import KafkaProducer
-    from kafka.errors import KafkaError
-
-    producer = KafkaProducer(
-        bootstrap_servers=bootstrap.split(","),
-        value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
-        key_serializer=lambda k: str(k).encode("utf-8") if k is not None else None,
-        acks="all",
-        retries=3,
-    )
-    try:
-        for i, payload in enumerate(payloads):
-            key = payload.get("transaction_id")
-            future = producer.send(topic, value=payload, key=key)
-            try:
-                future.get(timeout=10)
-            except KafkaError as e:
-                print(f"Erreur Kafka: {e}", file=sys.stderr)
-                raise
-            if sleep_ms > 0 and i < len(payloads) - 1:
-                time.sleep(sleep_ms / 1000.0)
-        producer.flush()
-    finally:
-        producer.close()
+    interval_seconds: float | None,
+    use_kafka: bool,
+) -> float:
+    """Pause entre deux transactions : --sleep-ms prioritaire, sinon --interval-seconds, sinon 5 s si Kafka."""
+    if sleep_ms != 0:
+        return max(0.0, sleep_ms / 1000.0)
+    if interval_seconds is not None:
+        return max(0.0, interval_seconds)
+    if use_kafka:
+        return DEFAULT_KAFKA_INTERVAL_SECONDS
+    return 0.0
 
 
 def main() -> None:
     p = argparse.ArgumentParser(
         description="Simule des transactions (schéma FraudShield / JSON pipeline)"
     )
-    p.add_argument("--count", type=int, default=10, help="Nombre de transactions à générer")
+    p.add_argument(
+        "--count",
+        type=int,
+        default=10,
+        help="Nombre de transactions (ignoré si --forever)",
+    )
+    p.add_argument(
+        "--forever",
+        action="store_true",
+        help="Envoie en boucle jusqu'à Ctrl+C (utile avec --kafka)",
+    )
     p.add_argument("--seed", type=int, default=None, help="Graine aléatoire (reproductibilité)")
     p.add_argument(
         "--fraud-rate",
@@ -175,7 +180,22 @@ def main() -> None:
         help="Brokers Kafka (virgules)",
     )
     p.add_argument("--topic", default=TOPIC_RAW, help="Topic Kafka de sortie")
-    p.add_argument("--sleep-ms", type=int, default=0, help="Pause entre envois Kafka")
+    p.add_argument(
+        "--sleep-ms",
+        type=int,
+        default=0,
+        help="Pause entre chaque envoi (ms), prioritaire sur --interval-seconds",
+    )
+    p.add_argument(
+        "--interval-seconds",
+        type=float,
+        default=None,
+        help=(
+            f"Secondes entre chaque transaction. "
+            f"Vers Kafka seul, défaut {DEFAULT_KAFKA_INTERVAL_SECONDS:g} s si non précisé. "
+            "Utiliser 0 pour enchaîner sans pause."
+        ),
+    )
     p.add_argument(
         "--output",
         choices=("stdout", "kafka", "both"),
@@ -186,33 +206,86 @@ def main() -> None:
         "--out-file",
         type=Path,
         default=None,
-        help="Optionnel : écrire une ligne JSON par transaction dans ce fichier",
+        help="Optionnel : une ligne JSON par transaction (écriture au fil de l'eau)",
     )
     args = p.parse_args()
 
-    if args.count < 1:
-        print("--count doit être >= 1", file=sys.stderr)
+    if not args.forever and args.count < 1:
+        print("--count doit être >= 1 (ou utilisez --forever)", file=sys.stderr)
         sys.exit(1)
-
-    rng = random.Random(args.seed)
-    payloads = [generate_transaction(rng, fraud_rate=args.fraud_rate) for _ in range(args.count)]
 
     use_stdout = args.output in ("stdout", "both")
     use_kafka = args.kafka or args.output in ("kafka", "both")
+    interval = _resolve_interval_seconds(args.sleep_ms, args.interval_seconds, use_kafka)
 
-    if use_stdout:
-        for row in payloads:
-            print(json.dumps(row, ensure_ascii=False))
+    rng = random.Random(args.seed)
 
+    producer = None
+    if use_kafka:
+        from kafka import KafkaProducer
+        from kafka.errors import KafkaError as _KafkaError
+
+        producer = KafkaProducer(
+            bootstrap_servers=args.bootstrap.split(","),
+            value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
+            key_serializer=lambda k: str(k).encode("utf-8") if k is not None else None,
+            acks="all",
+            retries=3,
+        )
+
+    out_f = None
     if args.out_file is not None:
         args.out_file.parent.mkdir(parents=True, exist_ok=True)
-        with args.out_file.open("w", encoding="utf-8") as f:
-            for row in payloads:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        out_f = args.out_file.open("w", encoding="utf-8")
 
-    if use_kafka:
-        _send_kafka(payloads, args.bootstrap, args.topic, args.sleep_ms)
-        print(f"Publie {len(payloads)} messages sur {args.topic}", file=sys.stderr)
+    sent = 0
+    first = True
+
+    if use_kafka and args.forever:
+        print(
+            f"Flux Kafka : 1 message toutes les {interval:g} s sur {args.topic} (Ctrl+C pour arrêter)",
+            file=sys.stderr,
+        )
+
+    try:
+        while True:
+            if not args.forever and sent >= args.count:
+                break
+            if not first and interval > 0:
+                time.sleep(interval)
+            first = False
+
+            row = generate_transaction(rng, fraud_rate=args.fraud_rate)
+
+            if use_stdout:
+                print(json.dumps(row, ensure_ascii=False))
+
+            if out_f is not None:
+                out_f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                out_f.flush()
+
+            if producer is not None:
+                key = row.get("transaction_id")
+                future = producer.send(args.topic, value=row, key=key)
+                try:
+                    future.get(timeout=10)
+                except _KafkaError as e:
+                    print(f"Erreur Kafka: {e}", file=sys.stderr)
+                    raise
+
+            sent += 1
+    except KeyboardInterrupt:
+        print(file=sys.stderr)
+        print(f"Arrêt après {sent} transaction(s).", file=sys.stderr)
+    finally:
+        if producer is not None:
+            producer.flush()
+            producer.close()
+        if out_f is not None:
+            out_f.close()
+
+    if use_kafka and sent > 0 and not args.forever:
+        print(f"Publie {sent} message(s) sur {args.topic}", file=sys.stderr)
 
 
 if __name__ == "__main__":

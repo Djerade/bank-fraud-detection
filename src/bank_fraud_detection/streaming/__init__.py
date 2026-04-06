@@ -1,1 +1,1 @@
-"""Ingestion et simulation de flux transactions (Kafka)."""
+"""Ingestion Kafka (producteurs, consommateur)."""

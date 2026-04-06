@@ -19,14 +19,14 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 |---------|-------------|
 | `data/FraudShield_Banking_Data.csv` | Données de transactions et étiquette fraude. |
 | `notebooks/exploration.ipynb` | Chargement, EDA, nettoyage, imputation, features temporelles. |
-| `src/bank_fraud_detection/` | Package Python : `config`, sous-package `streaming/` (CSV → Kafka, consommateur d’exemple, simulateur). |
+| `src/bank_fraud_detection/` | Package Python : `config`, `streaming/` (producteurs CSV/JSONL, consommateur) — **sans** code de simulation. |
+| `simulateur/` | **CLI** + **API FastAPI** (génération JSON, Kafka) + `Dockerfile` pour Compose. |
 | `docs/streaming.md` | Détail du streaming Kafka, variables d’environnement, commandes. |
-| `docker-compose.yml` | **Kafka** local en mode **KRaft** (1 broker, sans ZooKeeper), image Confluent 7.6.1. |
+| `docker-compose.yml` | **Kafka** (KRaft, 1 broker) + service **`simulateur-api`** (build image depuis le dépôt). |
 | `scripts/streaming/ingest_csv.sh` | Raccourci pour publier un extrait du CSV vers Kafka. |
 | `pyproject.toml` | Métadonnée du projet et liste des dépendances (pins). |
 | `requirements.txt` | Installe le package en éditable + dépendances cœur. |
 | `requirements-notebooks.txt` | Même chose + extra `[notebooks]` (JupyterLab, visualisation). |
-| `tests/` | Tests unitaires légers (`unittest`). |
 
 ---
 
@@ -68,23 +68,29 @@ source .venv/bin/activate   # Linux / macOS
 pip install -r requirements.txt
 ```
 
-Cela installe le package **`bank_fraud_detection`** en mode éditable depuis `src/` (données, ML, Kafka, API). Pour **Jupyter** et la visualisation :
+Cela installe en mode éditable **`bank_fraud_detection`** (`src/`) et le package **`simulateur/`** (CLI + API). Pour **Jupyter** et la visualisation :
 
 ```bash
 pip install -r requirements-notebooks.txt
 ```
 
-Les modules `python -m bank_fraud_detection...` sont disponibles après installation (`pip install -e .` équivaut à `requirements.txt` seul).
+Les modules `python -m bank_fraud_detection...` et `python -m simulateur...` sont disponibles après installation (`pip install -e .` équivaut à `requirements.txt` seul). Sans installation : préfixer avec `PYTHONPATH=src:.` depuis la racine du dépôt.
 
 ---
 
 ## Démarrage rapide : Kafka + ingestion
 
-1. **Lancer le cluster Kafka**
+1. **Lancer Kafka (et optionnellement l’API simulateur)**
 
    ```bash
-   docker compose up -d
+   docker compose up -d --build
    ```
+
+   - Broker : `localhost:9092`
+   - Swagger de l’API : [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)  
+   Le premier build de l’image API peut être long (dépendances du `pyproject.toml`).
+
+   Kafka seul (sans reconstruire l’API) : `docker compose up -d kafka`.
 
 2. **Publier des transactions** (exemple : 2 000 lignes du CSV)
 
@@ -96,13 +102,17 @@ Les modules `python -m bank_fraud_detection...` sont disponibles après installa
 3. **Vérifier des messages** sur le topic brut
 
    ```bash
-   python -m bank_fraud_detection.streaming.kafka_consume_sample --topic bank.transactions.raw --max 5
+   python -m bank_fraud_detection.streaming.kafka_consume_sample --max 5
    ```
+
+   **Temps réel** (affichage au fil de l’eau, Ctrl+C pour arrêter) :  
+   `python -m bank_fraud_detection.streaming.kafka_consume_sample --follow`
 
 4. **(Optionnel)** Simuler des transactions synthétiques
 
    ```bash
-   python -m bank_fraud_detection.streaming.transaction_simulator --count 20 --kafka --sleep-ms 1
+   python -m simulateur.transaction_simulator --kafka --forever
+   # (par défaut : 1 transaction / 5 s ; --interval-seconds 0 pour enchaîner sans pause)
    ```
 
 Détails, variables d’environnement et format JSON : **[docs/streaming.md](docs/streaming.md)**.
@@ -120,14 +130,6 @@ Ouvrir `notebooks/exploration.ipynb` (chargement du CSV, EDA, nettoyage, etc.).
 
 ---
 
-## Tests
-
-```bash
-python -m unittest discover -s tests -p "test_*.py" -v
-```
-
----
-
 ## Structure du dépôt
 
 ```text
@@ -135,8 +137,8 @@ bank-fraud-detection/
 ├── src/
 │   └── bank_fraud_detection/   # Package installable
 │       ├── config.py           # Kafka, chemins, mapping CSV → JSON
-│       └── streaming/          # Producteurs / consommateur / simulateur
-├── tests/                      # Tests unittest
+│       └── streaming/          # Producteurs CSV/JSONL, consommateur Kafka
+├── simulateur/                 # CLI + API FastAPI + Dockerfile (image Compose)
 ├── docs/
 │   └── streaming.md            # Guide Kafka détaillé
 ├── data/                       # Jeu FraudShield (CSV)

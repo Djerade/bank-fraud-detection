@@ -1,29 +1,41 @@
 """
-Configuration partagée : Kafka, chemins données, mapping CSV → JSON des messages.
-Les variables d'environnement priment pour l'exécution en conteneur ou en local.
+Configuration partagée pour le package : Kafka, chemins des données, schéma CSV → JSON.
+
+Toutes les valeurs peuvent être surchargées par des variables d'environnement
+(typique : Docker, CI, ou poste local sans modifier le code).
 """
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
-# Racine du dépôt (parent de src/)
+# Chemin absolu vers la racine du dépôt Git (…/bank-fraud-detection), utilisé pour
+# résoudre data/FraudShield_Banking_Data.csv par défaut.
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
+# Brokers Kafka (liste host:port séparés par des virgules). Aligné sur docker-compose
+# (un broker local sur 127.0.0.1:9092).
 KAFKA_BOOTSTRAP_SERVERS: str = os.environ.get(
     "KAFKA_BOOTSTRAP_SERVERS",
     "localhost:9092",
 )
+
+# Topic d'ingestion : producteur CSV / simulateur publient ici.
 TOPIC_RAW: str = os.environ.get("KAFKA_TOPIC_RAW", "bank.transactions.raw")
+
+# Topic aval (traitement, scoring) — le consommateur d'exemple y pointe par défaut.
 TOPIC_PROCESSED: str = os.environ.get(
     "KAFKA_TOPIC_PROCESSED",
     "bank.transactions.processed",
 )
+
+# Fichier source FraudShield lu par csv_to_kafka si aucun --csv n'est passé.
 CSV_DEFAULT_PATH: Path = Path(
     os.environ.get("FRAUD_CSV_PATH", str(REPO_ROOT / "data" / "FraudShield_Banking_Data.csv"))
 )
 
-# Correspondance en-têtes CSV -> clés JSON (messages Kafka)
+# Noms de colonnes du CSV (en-têtes du jeu FraudShield) → clés des objets JSON
+# envoyés sur Kafka (snake_case, adaptées aux pipelines et à l'API).
 CSV_TO_JSON_FIELD: dict[str, str] = {
     "Transaction_ID": "transaction_id",
     "Customer_ID": "customer_id",

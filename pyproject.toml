@@ -31,4 +31,5 @@ notebooks = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["bank_fraud_detection*", "simulateur"]

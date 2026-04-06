@@ -4,12 +4,37 @@ Publication des transactions du jeu **FraudShield** (`data/FraudShield_Banking_D
 
 | Module | Rôle |
 |--------|------|
-| `bank_fraud_detection.streaming.csv_to_kafka` | Producteur : lit le CSV par blocs et envoie vers le topic brut. |
+| `bank_fraud_detection.streaming.csv_to_kafka` | Producteur : CSV **ou** JSONL (`--jsonl`, dont `-` = stdin / pipe simulateur). |
 | `bank_fraud_detection.streaming.kafka_consume_sample` | Consommateur minimal (affichage de *n* messages). |
-| `bank_fraud_detection.streaming.transaction_simulator` | Génère des transactions synthétiques (même schéma JSON). |
 | `bank_fraud_detection.config` | Brokers, topics, chemin CSV, mapping colonnes → clés JSON. |
+| `simulateur/` (racine du dépôt) | **CLI** `python -m simulateur.transaction_simulator`, **API FastAPI** (`app.py`), génération JSON et publication Kafka. |
 
 Un **traitement aval** (prétraitement, scoring fraude, alertes) pourra consommer le même topic ou un topic dérivé via un service Python, Kafka Streams, Flink, etc.
+
+---
+
+## API simulateur (FastAPI)
+
+Dossier : `simulateur/` à la racine du dépôt (`app.py`, `schemas.py`, `transaction_simulator.py`, `Dockerfile`). Le package `bank_fraud_detection` est importé depuis `src/` (installer le projet avec `pip install -e .`).
+
+Démarrage **local** (après `pip install -r requirements.txt` ; sans installation : `PYTHONPATH=src:.`) :
+
+```bash
+uvicorn simulateur.app:app --reload --host 127.0.0.1 --port 8000
+# ou, depuis la racine :
+python -m simulateur
+```
+
+**Docker** (Kafka + API, détail plus bas) : `docker compose up -d --build` — documentation interactive : [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+| Méthode | Chemin | Rôle |
+|---------|--------|------|
+| GET | `/health` | Santé du service |
+| GET | `/transaction` | Une transaction (query : `fraud_rate`, `seed`) |
+| POST | `/transactions` | Corps JSON : `count`, `fraud_rate`, `seed` → liste de transactions |
+| POST | `/publish` | Génère et envoie vers Kafka (`count`, `fraud_rate`, `topic`, `interval_seconds`, …) |
+
+Les variables `KAFKA_BOOTSTRAP_SERVERS` et `KAFKA_TOPIC_RAW` s’appliquent à `/publish`.
 
 ---
 
@@ -45,6 +70,19 @@ Arrêt :
 docker compose down
 ```
 
+### Kafka + API simulateur (Compose)
+
+Le `docker-compose.yml` définit aussi le service **`simulateur-api`** (build `simulateur/Dockerfile`). L’API rejoint le broker avec **`KAFKA_BOOTSTRAP_SERVERS=kafka:29092`** (réseau interne Docker, pas `localhost`).
+
+```bash
+docker compose up -d --build
+```
+
+- Kafka (hôte) : `localhost:9092`
+- API : `127.0.0.1:8000` (Swagger `/docs`)
+
+Le premier build peut être long (toutes les dépendances du `pyproject.toml`, dont la stack ML).
+
 ---
 
 ## Variables d’environnement
@@ -66,23 +104,53 @@ Exporter les brokers si besoin :
 export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 ```
 
-**Publier** des lignes vers le topic brut :
+**Publier** des lignes CSV vers le topic brut :
 
 ```bash
 python -m bank_fraud_detection.streaming.csv_to_kafka --max-rows 2000 --sleep-ms 1
 ```
 
-**Simuler** des transactions :
+**Chaîne simulateur → Kafka** (sans `--kafka` sur le simulateur : il n’envoie que sur stdout, `csv_to_kafka` publie) :
 
 ```bash
-python -m bank_fraud_detection.streaming.transaction_simulator --count 50 --kafka --sleep-ms 1
+python -m simulateur.transaction_simulator --count 10 | \
+  python -m bank_fraud_detection.streaming.csv_to_kafka --jsonl -
 ```
 
-**Lire** quelques messages sur le topic brut (le sample pointe par défaut vers `KAFKA_TOPIC_PROCESSED` ; pour l’ingestion, préciser le topic brut) :
+Ou depuis un fichier JSONL (`--out-file` du simulateur) :
 
 ```bash
-python -m bank_fraud_detection.streaming.kafka_consume_sample --topic bank.transactions.raw --max 5
+python -m bank_fraud_detection.streaming.csv_to_kafka --jsonl ./transactions.jsonl
 ```
+
+**Simuler** des transactions (CLI, après `pip install -e .` ; sinon `PYTHONPATH=src:.`) :
+
+```bash
+python -m simulateur.transaction_simulator --kafka --forever
+# ou N messages, 1 toutes les 5 s par défaut vers Kafka :
+python -m simulateur.transaction_simulator --kafka --count 20
+# rafale (sans pause) : --interval-seconds 0
+```
+
+**Lire** quelques messages sur le topic brut (défaut du script : `bank.transactions.raw`) :
+
+```bash
+python -m bank_fraud_detection.streaming.kafka_consume_sample --max 5
+```
+
+**Suivre en temps réel** (chaque nouveau message s’affiche dès publication ; lancer **avant** ou **pendant** le simulateur / `csv_to_kafka`) :
+
+```bash
+python -m bank_fraud_detection.streaming.kafka_consume_sample --follow
+```
+
+Pour voir d’abord tout l’historique du topic puis les nouveaux messages :
+
+```bash
+python -m bank_fraud_detection.streaming.kafka_consume_sample --follow --from-beginning
+```
+
+Autre topic (ex. traité) : `--topic bank.transactions.processed`.
 
 Raccourci shell :
 

@@ -1,8 +1,13 @@
-# Kafka en mode KRaft (sans ZooKeeper) — un nœud broker + contrôleur, adapté au dev local.
-# Plus simple et plus stable que ZK + 3 brokers sur Docker Desktop (fsync / timeouts).
+# Kafka (KRaft) + API simulateur (FastAPI).
 #
-# Démarrage : docker compose up -d
-# Bootstrap : localhost:9092
+# Démarrage : docker compose up -d --build
+#
+# Depuis la machine hôte :
+#   - Kafka : localhost:9092
+#   - API   : http://127.0.0.1:8000/docs
+#
+# Les services sur le réseau Compose utilisent le listener interne kafka:29092
+# (pas localhost, qui désigne le conteneur lui-même).
 
 services:
   kafka:
@@ -23,7 +28,28 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      # Topics créés à la première publication si absents (dev)
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      # ID de cluster fixe pour le premier formatage du stockage metadata (dev uniquement)
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    networks:
+      - bank-fraud-detection-network
+
+  bank-system-api:
+    build:
+      context: .
+      dockerfile: simulateur/Dockerfile
+    image: bank-fraud-detection-simulateur:latest
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Listener PLAINTEXT interne (même réseau Docker que ce conteneur)
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC_RAW: bank.transactions.raw
+      KAFKA_TOPIC_PROCESSED: bank.transactions.processed
+    depends_on:
+      - kafka
+    networks:
+      - bank-fraud-detection-network
+
+networks:
+  bank-fraud-detection-network:
+    driver: bridge
