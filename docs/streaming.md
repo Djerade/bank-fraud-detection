@@ -83,6 +83,8 @@ docker compose up -d --build
 
 Le premier build peut être long (toutes les dépendances du `pyproject.toml`, dont la stack ML).
 
+Le même fichier compose **monte le code** (`simulateur/`, `src/bank_fraud_detection/`) et lance l’API avec **`uvicorn --reload`** : une sauvegarde dans l’éditeur redémarre le serveur. Sur Docker Desktop, décommenter `WATCHFILES_FORCE_POLLING` sous `simulateur-api` si le reload ne réagit pas.
+
 ---
 
 ## Variables d’environnement

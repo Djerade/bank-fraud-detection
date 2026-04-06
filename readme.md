@@ -92,6 +92,8 @@ Les modules `python -m bank_fraud_detection...` et `python -m simulateur...` son
 
    Kafka seul (sans reconstruire l’API) : `docker compose up -d kafka`.
 
+   Le `docker-compose.yml` monte `simulateur/` et `src/bank_fraud_detection/` dans le conteneur avec **`uvicorn --reload`** : en enregistrant un `.py` dans ces dossiers, l’API redémarre (voir les logs). Sur Docker Desktop, si le reload ne part pas, décommente `WATCHFILES_FORCE_POLLING` sous `simulateur-api` dans le même fichier.
+
 2. **Publier des transactions** (exemple : 2 000 lignes du CSV)
 
    ```bash

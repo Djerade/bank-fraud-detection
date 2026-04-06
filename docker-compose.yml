@@ -2,6 +2,13 @@
 #
 # Démarrage : docker compose up -d --build
 #
+# L’API monte le code depuis l’hôte et tourne avec uvicorn --reload : une sauvegarde
+# dans simulateur/ ou src/bank_fraud_detection/ redémarre le serveur (voir les logs).
+# Sur Docker Desktop, si le reload ne part pas, décommentez WATCHFILES_FORCE_POLLING.
+#
+# Pour une image « figée » (sans montage ni reload), retirez volumes, command et
+# la variable WATCHFILES_FORCE_POLLING sous simulateur-api (le CMD du Dockerfile s’applique).
+#
 # Depuis la machine hôte :
 #   - Kafka : localhost:9092
 #   - API   : http://127.0.0.1:8000/docs
@@ -33,7 +40,7 @@ services:
     networks:
       - bank-fraud-detection-network
 
-  bank-system-api:
+  simulateur-api:
     build:
       context: .
       dockerfile: simulateur/Dockerfile
@@ -41,10 +48,26 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     environment:
-      # Listener PLAINTEXT interne (même réseau Docker que ce conteneur)
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC_RAW: bank.transactions.raw
       KAFKA_TOPIC_PROCESSED: bank.transactions.processed
+      # Docker Desktop (macOS / Windows) : décommenter si --reload ne réagit pas aux sauvegardes
+      # WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      - ./src/bank_fraud_detection:/app/src/bank_fraud_detection
+      - ./simulateur:/app/simulateur
+    command:
+      - uvicorn
+      - simulateur.app:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app/simulateur
+      - --reload-dir
+      - /app/src/bank_fraud_detection
     depends_on:
       - kafka
     networks:

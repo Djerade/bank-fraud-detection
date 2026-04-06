@@ -9,15 +9,15 @@ Docker :
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import random
-import time
+from collections.abc import AsyncIterator
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Query
+from fastapi.responses import StreamingResponse
 
-from bank_fraud_detection.config import KAFKA_BOOTSTRAP_SERVERS, TOPIC_RAW
-
-from .schemas import BatchParams, PublishParams, PublishResult
+from .schemas import BatchParams
 from .transaction_simulator import generate_transaction
 
 app = FastAPI(
@@ -49,8 +49,28 @@ def batch_transactions(body: BatchParams) -> list[dict[str, object]]:
     return [generate_transaction(rng, fraud_rate=body.fraud_rate) for _ in range(body.count)]
 
 
-@app.post("/transaction_continuous")
-def transaction_continuous() -> dict[str, object]:
-    """Génère une transaction continue (corps JSON)."""
+async def _transaction_continuous_bytes(
+    fraud_rate: float,
+) -> AsyncIterator[bytes]:
+    """Chaque seconde : entre 5 et 7 transactions (une ligne JSON par transaction)."""
+    rng = random.Random()
     while True:
-        yield generate_transaction(random.Random(), fraud_rate=0.02)
+        n = random.randint(5, 7)
+        for _ in range(n):
+            row = generate_transaction(rng, fraud_rate=fraud_rate)
+            yield (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
+        await asyncio.sleep(1.0)
+
+
+@app.get("/transaction_continuous")
+async def transaction_continuous(
+    fraud_rate: float = Query(default=0.02, ge=0.0, le=1.0),
+) -> StreamingResponse:
+    """
+    Flux NDJSON infini : par période d’environ 1 s, envoie 5 à 7 transactions.
+    Le client ferme la connexion pour arrêter (ex. Ctrl+C avec curl).
+    """
+    return StreamingResponse(
+        _transaction_continuous_bytes(fraud_rate),
+        media_type="application/x-ndjson",
+    )
