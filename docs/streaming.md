@@ -32,9 +32,10 @@ python -m simulateur
 | GET | `/health` | Santé du service |
 | GET | `/transaction` | Une transaction (query : `fraud_rate`, `seed`) |
 | POST | `/transactions` | Corps JSON : `count`, `fraud_rate`, `seed` → liste de transactions |
+| GET | `/transaction_continuous` | Flux NDJSON (5–7 tx/s) ; avec `to_kafka=true`, chaque transaction est aussi publiée sur Kafka (`topic` optionnel) |
 | POST | `/publish` | Génère et envoie vers Kafka (`count`, `fraud_rate`, `topic`, `interval_seconds`, …) |
 
-Les variables `KAFKA_BOOTSTRAP_SERVERS` et `KAFKA_TOPIC_RAW` s’appliquent à `/publish`.
+Les variables `KAFKA_BOOTSTRAP_SERVERS` et `KAFKA_TOPIC_RAW` s’appliquent à `/publish` et à `/transaction_continuous?to_kafka=true`.
 
 ---
 
@@ -139,6 +140,15 @@ python -m simulateur.transaction_simulator --kafka --forever
 # ou N messages, 1 toutes les 5 s par défaut vers Kafka :
 python -m simulateur.transaction_simulator --kafka --count 20
 # rafale (sans pause) : --interval-seconds 0
+```
+
+**Connecteur HTTP** (`kafka-cluster/connecteur_api.py`) — récupère le flux NDJSON de **`GET /transaction_continuous`** (API sur `http://127.0.0.1:8000` par défaut ou `SIMULATEUR_API_BASE`) :
+
+```bash
+python kafka-cluster/connecteur_api.py --max 10
+python kafka-cluster/connecteur_api.py --out-jsonl recu.jsonl
+# Demande à l’API de publier en parallèle sur Kafka : --api-to-kafka
+python kafka-cluster/connecteur_api.py --api-to-kafka --max 5
 ```
 
 **Lire** quelques messages sur le topic brut (défaut du script : `bank.transactions.raw`) :

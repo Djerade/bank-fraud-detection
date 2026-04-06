@@ -146,7 +146,7 @@ bank-fraud-detection/
 │   └── streaming.md            # Guide Kafka détaillé
 ├── data/                       # Jeu FraudShield (CSV)
 ├── notebooks/                  # Analyses (Jupyter)
-├── kafka-cluster/              # Scripts Python démo (config, producteur, consommateur)
+├── kafka-cluster/              # Scripts démo : connecteur API, producteur / consommateur Kafka
 ├── scripts/streaming/          # Raccourcis shell (ex. ingest_csv.sh)
 ├── docker-compose.yml          # ZooKeeper, Kafka x3, Kafka UI, simulateur-api
 ├── pyproject.toml
