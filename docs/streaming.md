@@ -219,3 +219,14 @@ Sans conteneur actif, les scripts Python afficheront `NoBrokersAvailable` ou des
 **`Started AdminServer … port 8080` dans les logs ZooKeeper** — interface **admin interne** au **conteneur** ZK (pas le port **8080** de **Kafka UI** sur l’hôte, sauf si tu as publié ce port par erreur). Ne pas confondre avec l’UI Kafka.
 
 **`InvalidReceiveException` sur les ports 9092–9094** — même idée : **HTTP** ou autre protocole sur un port **Kafka** (navigateur, healthcheck mal configuré). Kafka ferme la connexion (WARN) ; le cluster peut continuer à fonctionner.
+
+**`kafka-console-consumer` dans `docker compose exec kafka-1` + `localhost:9092` → WARN « node 2 … localhost:9093 could not be established »** — dans le conteneur, `localhost` est ce conteneur, pas les autres brokers. Utiliser le bootstrap **réseau Docker** (listener **PLAINTEXT**, port **29092**) :
+
+```bash
+docker compose exec kafka-1 kafka-console-consumer \
+  --bootstrap-server kafka-1:29092,kafka-2:29092,kafka-3:29092 \
+  --topic bank.transactions.raw \
+  --from-beginning
+```
+
+Sur la **machine hôte**, en revanche, garde `localhost:9092,9093,9094` (Python, outils locaux).

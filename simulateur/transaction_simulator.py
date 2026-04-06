@@ -128,7 +128,6 @@ def generate_transaction(
         "failed_transaction_count": failed,
         "unusual_time_transaction": unusual,
         "previous_fraud_count": prev_fraud,
-        "fraud_label": fraud_label,
     }
 
 
