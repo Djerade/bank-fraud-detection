@@ -1,11 +1,9 @@
 """
 API REST de simulation de transactions bancaires (même schéma que le CLI / Kafka).
 
-Lancer (local, après ``pip install -r requirements.txt`` à la racine du dépôt) :
-  uvicorn simulateur.app:app --reload --host 127.0.0.1 --port 8000
+Déploiement prévu : image ``simulateur-api`` (Docker Compose) → http://127.0.0.1:8000/docs
 
-Docker :
-  docker compose up -d --build   → http://127.0.0.1:8000/docs
+Pour un essai ponctuel hors conteneur : ``uvicorn simulateur.app:app`` avec ``PYTHONPATH=/racine_du_depot``.
 """
 from __future__ import annotations
 
@@ -17,21 +15,16 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse
 
-from bank_fraud_detection.config import KAFKA_BOOTSTRAP_SERVERS, TOPIC_RAW
-
+from Config.config import TOPIC, bootstrap_servers_list
 from .schemas import BatchParams
 from .transaction_simulator import generate_transaction
-
-
-def _bootstrap_list() -> list[str]:
-    return [h.strip() for h in KAFKA_BOOTSTRAP_SERVERS.split(",") if h.strip()]
 
 
 def _kafka_producer():
     from kafka import KafkaProducer
 
     return KafkaProducer(
-        bootstrap_servers=_bootstrap_list(),
+        bootstrap_servers=bootstrap_servers_list(),
         value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
         key_serializer=lambda k: str(k).encode("utf-8") if k is not None else None,
         acks="all",
@@ -106,19 +99,19 @@ async def transaction_continuous(
     ),
     topic: str | None = Query(
         default=None,
-        description="Topic Kafka (défaut : KAFKA_TOPIC_RAW / config).",
+        description="Topic Kafka (défaut : KAFKA_TOPIC / config).",
     ),
 ) -> StreamingResponse:
     """
     Flux NDJSON infini : par période d’environ 1 s, envoie 5 à 7 transactions.
 
     Avec ``to_kafka=true``, chaque ligne est **également** produite sur Kafka (même schéma JSON).
-    Configure ``KAFKA_BOOTSTRAP_SERVERS`` (ex. dans docker-compose pour ``simulateur-api`` :
-    ``kafka-1:29092``). En local hors Docker : ``localhost:9092``.
+    Les brokers sont lus via ``KAFKA_BOOTSTRAP_SERVERS`` (dans Compose : ``kafka-1:29092``
+    pour le conteneur API ; depuis l’hôte vers Kafka exposé : ``localhost:9092``).
 
     Le client HTTP ferme la connexion pour arrêter (ex. Ctrl+C avec curl).
     """
-    kafka_topic = topic or TOPIC_RAW
+    kafka_topic = topic or TOPIC
     return StreamingResponse(
         _transaction_continuous_bytes(fraud_rate, to_kafka=to_kafka, topic=kafka_topic),
         media_type="application/x-ndjson",

@@ -17,9 +17,10 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 
 | Élément | Description |
 |---------|-------------|
-| `data/FraudShield_Banking_Data.csv` | Données de transactions et étiquette fraude. |
+| `docs/FraudShield_Banking_Data.csv` | Données de transactions et étiquette fraude (référence FraudShield). |
 | `notebooks/exploration.ipynb` | Chargement, EDA, nettoyage, imputation, features temporelles. |
-| `src/bank_fraud_detection/` | Package Python : `config`, `streaming/` (producteurs CSV/JSONL, consommateur) — **sans** code de simulation. |
+| `Config/` | Paramètres Kafka partagés (brokers, **un seul topic** `KAFKA_TOPIC`) pour l’API et les scripts. |
+| `kafka-cluster/` | Scripts CLI : producteur / consommateur Kafka, connecteur vers l’API (montés dans l’image API pour `docker compose exec`). |
 | `simulateur/` | **CLI** + **API FastAPI** (génération JSON, Kafka) + `Dockerfile` pour Compose. |
 | `docs/streaming.md` | Détail du streaming Kafka, variables d’environnement, commandes. |
 | `docker-compose.yml` | **ZooKeeper + Kafka** (1 broker) + **Kafka UI** + **`simulateur-api`** (fichier unique à la racine). |
@@ -31,7 +32,7 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 
 ## Architecture cible (vue d’ensemble)
 
-1. **Producteur** — envoi des transactions vers Kafka (`bank_fraud_detection.streaming.csv_to_kafka`).
+1. **Producteur** — envoi des transactions vers Kafka (API simulateur, CLI `simulateur`, ou scripts `kafka-cluster/`).
 2. **Kafka** — transport des événements (broker local + ZooKeeper via Docker Compose).
 3. **Traitement / scoring** — consommateur Python, microservice, ou autre moteur (Flink, Kafka Streams…) qui lit le topic, enrichit et score.
 4. **Modèle IA** — entraîné hors ligne ; chargé dans le service de scoring ou l’API REST.
@@ -50,74 +51,73 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 
 ## Prérequis
 
-- Python 3.10+ recommandé  
-- Docker et Docker Compose  
-- Git
+- **Docker** et **Docker Compose** (flux de travail principal)
+- **Git**
+- Python 3.10+ **facultatif** — uniquement si vous utilisez les notebooks Jupyter sur l’hôte
 
 ---
 
-## Installation
+## Installation (facultatif, notebooks / outils hors Docker)
 
 ```bash
 git clone <URL_DU_DEPOT>
 cd bank-fraud-detection
 python -m venv .venv
 source .venv/bin/activate   # Linux / macOS
-# ou : .venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 ```
 
-Cela installe en mode éditable **`bank_fraud_detection`** (`src/`) et le package **`simulateur/`** (CLI + API). Pour **Jupyter** et la visualisation :
+Pour **Jupyter** et la visualisation :
 
 ```bash
 pip install -r requirements-notebooks.txt
 ```
 
-Les modules `python -m bank_fraud_detection...` et `python -m simulateur...` sont disponibles après installation (`pip install -e .` équivaut à `requirements.txt` seul). Sans installation : préfixer avec `PYTHONPATH=src:.` depuis la racine du dépôt.
+Le dépôt est conçu pour être utilisé **via Docker** ; un venv local reste utile surtout pour `notebooks/exploration.ipynb`.
 
 ---
 
-## Démarrage rapide : Kafka + ingestion
+## Démarrage rapide : tout dans Docker
 
-1. **Lancer Kafka (et optionnellement l’API simulateur)**
+1. **Lancer la stack**
 
    ```bash
    docker compose up -d --build
    ```
 
-   - Kafka (hôte) : `localhost:9092` ; ZooKeeper : `localhost:2181` ; **Kafka UI** : [http://127.0.0.1:8080](http://127.0.0.1:8080)
-   - Swagger de l’API : [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)  
-   Le premier build de l’image API peut être long (dépendances du `pyproject.toml`).
+   - Depuis l’hôte : Kafka `localhost:9092`, ZooKeeper `localhost:2181`, **Kafka UI** [http://127.0.0.1:8080](http://127.0.0.1:8080), **API** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+   - Le premier build de l’image API peut être long.
 
-   Kafka + ZooKeeper + UI sans reconstruire l’API :  
-   `docker compose up -d zookeeper kafka-1 kafka-ui`
+   Sans reconstruire l’API :  
+   `docker compose up -d zookeeper kafka-1 kafka-ui simulateur-api`
 
-   Le `docker-compose.yml` monte `simulateur/` et `src/bank_fraud_detection/` dans le conteneur avec **`uvicorn --reload`** : en enregistrant un `.py` dans ces dossiers, l’API redémarre (voir les logs). Sur Docker Desktop, si le reload ne part pas, décommente `WATCHFILES_FORCE_POLLING` sous `simulateur-api` dans le même fichier.
+   Les dossiers `simulateur/`, `Config/` et `kafka-cluster/` sont montés dans `simulateur-api` avec **`uvicorn --reload`**. Sur Docker Desktop, si le reload ne part pas, décommente `WATCHFILES_FORCE_POLLING` sous `simulateur-api` dans `docker-compose.yml`.
 
-2. **Publier des transactions** (exemple : 2 000 lignes du CSV)
-
-   ```bash
-   export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-   python -m bank_fraud_detection.streaming.csv_to_kafka --max-rows 2000 --sleep-ms 1
-   ```
-
-3. **Vérifier des messages** sur le topic brut
+2. **Publier des transactions synthétiques** (dans le réseau Docker, brokers déjà configurés)
 
    ```bash
-   python -m bank_fraud_detection.streaming.kafka_consume_sample --max 5
+   docker compose exec simulateur-api python -m simulateur.transaction_simulator --kafka --count 50
    ```
 
-   **Temps réel** (affichage au fil de l’eau, Ctrl+C pour arrêter) :  
-   `python -m bank_fraud_detection.streaming.kafka_consume_sample --follow`
+   Flux continu (par défaut ~1 transaction / 5 s) :  
+   `docker compose exec simulateur-api python -m simulateur.transaction_simulator --kafka --forever`
 
-4. **(Optionnel)** Simuler des transactions synthétiques
+3. **Lire des messages** sur le topic (conteneur API, scripts sous `/app/kafka-cluster`)
 
    ```bash
-   python -m simulateur.transaction_simulator --kafka --forever
-   # (par défaut : 1 transaction / 5 s ; --interval-seconds 0 pour enchaîner sans pause)
+   docker compose exec simulateur-api bash -lc "cd /app/kafka-cluster && python consumer.py --max 5"
    ```
 
-Détails, variables d’environnement et format JSON : **[docs/streaming.md](docs/streaming.md)**.
+   Suivi temps réel (Ctrl+C pour arrêter) :  
+   `docker compose exec simulateur-api bash -lc "cd /app/kafka-cluster && python consumer.py --follow"`
+
+4. **Producteur JSON d’exemple** (même conteneur)
+
+   ```bash
+   docker compose exec simulateur-api bash -lc "cd /app/kafka-cluster && python produceur.py --count 3"
+   ```
+
+Détails, variables d’environnement et format JSON : **[docs/streaming.md](docs/streaming.md)**. Un seul topic Kafka est défini par `KAFKA_TOPIC` (défaut `bank.transactions.raw`).
 
 ---
 
@@ -136,16 +136,13 @@ Ouvrir `notebooks/exploration.ipynb` (chargement du CSV, EDA, nettoyage, etc.).
 
 ```text
 bank-fraud-detection/
-├── src/
-│   └── bank_fraud_detection/   # Package installable
-│       ├── config.py           # Kafka, chemins, mapping CSV → JSON
-│       └── streaming/          # Producteurs CSV/JSONL, consommateur Kafka
+├── Config/                     # Config Kafka partagée (API simulateur)
 ├── simulateur/                 # CLI + API FastAPI + Dockerfile (image Compose)
+├── kafka-cluster/              # Scripts : connecteur API, producteur / consommateur Kafka
 ├── docs/
-│   └── streaming.md            # Guide Kafka détaillé
-├── data/                       # Jeu FraudShield (CSV)
+│   ├── streaming.md            # Guide Kafka détaillé
+│   └── FraudShield_Banking_Data.csv  # Données de référence (exemple)
 ├── notebooks/                  # Analyses (Jupyter)
-├── kafka-cluster/              # Scripts démo : connecteur API, producteur / consommateur Kafka
 ├── docker-compose.yml          # ZooKeeper, Kafka (1 broker), Kafka UI, simulateur-api
 ├── pyproject.toml
 ├── requirements.txt

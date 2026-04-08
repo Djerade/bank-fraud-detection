@@ -16,7 +16,9 @@ class BatchParams(TransactionParams):
 
 
 class PublishParams(BatchParams):
-    topic: str | None = Field(default=None, description="Topic Kafka (défaut: config TOPIC_RAW)")
+    """Corps prévu pour une route ``/publish`` éventuelle — non exposée dans ``app.py`` pour l’instant."""
+
+    topic: str | None = Field(default=None, description="Topic Kafka (défaut: config TOPIC)")
     interval_seconds: float = Field(
         default=0.0,
         ge=0.0,

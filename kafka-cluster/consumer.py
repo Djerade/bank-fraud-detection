@@ -15,18 +15,19 @@ import argparse
 import json
 import sys
 
+import _repo_root  # noqa: F401 — racine du dépôt pour Config
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
 
-from config import TOPIC_RAW, bootstrap_servers_list
+from Config.config import TOPIC, bootstrap_servers_list
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Lit des messages JSON depuis un topic Kafka")
     p.add_argument(
         "--topic",
-        default=TOPIC_RAW,
-        help=f"Topic à lire (défaut : {TOPIC_RAW} / KAFKA_TOPIC_RAW)",
+        default=TOPIC,
+        help=f"Topic à lire (défaut : {TOPIC} / KAFKA_TOPIC)",
     )
     p.add_argument(
         "--from-beginning",
@@ -55,7 +56,8 @@ def main() -> None:
     # Par défaut : earliest (sinon tout message déjà produit avant le consumer semble « invisible »).
     offset_mode = "latest" if args.only_new else "earliest"
 
-    # Toujours attendre les messages sans couper au bout de 10 s (sinon topic perçu comme vide)
+    # Ne pas passer consumer_timeout_ms=None : kafka-python 2.x compare avec >= 0 et lève TypeError.
+    # Défaut du client : attente illimitée entre polls dans l’itérateur.
     consumer = KafkaConsumer(
         args.topic,
         bootstrap_servers=servers,
@@ -63,7 +65,6 @@ def main() -> None:
         enable_auto_commit=True,
         group_id="kafka-cluster-cli-consumer",
         value_deserializer=lambda b: json.loads(b.decode("utf-8")) if b else None,
-        consumer_timeout_ms=None,
     )
 
     print(

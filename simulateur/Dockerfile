@@ -4,11 +4,13 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY pyproject.toml readme.md requirements.txt /app/
-COPY src /app/src
+COPY Config /app/Config
+COPY kafka-cluster /app/kafka-cluster
 COPY simulateur /app/simulateur
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir -r requirements.txt
+# Réseau lent / PyPI instable : évite ReadTimeoutError sur files.pythonhosted.org
+ENV PIP_DEFAULT_TIMEOUT=300
+RUN pip install --no-cache-dir --retries=10 -r requirements.txt
 
 ENV PYTHONPATH=/app
 

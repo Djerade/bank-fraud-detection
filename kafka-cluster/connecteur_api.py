@@ -9,7 +9,7 @@ Usage (depuis la racine du dépôt) :
   python kafka-cluster/connecteur_api.py --max 20
   python kafka-cluster/connecteur_api.py --base-url http://127.0.0.1:8000 --fraud-rate 0.1
 
-Variables d’environnement : SIMULATEUR_API_BASE (voir config.py).
+Variables d’environnement : SIMULATEUR_API_BASE (voir ``Config/config.py``).
 
 Aucune dépendance HTTP supplémentaire (urllib stdlib).
 """
@@ -22,7 +22,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from config import SIMULATEUR_API_BASE
+import _repo_root  # noqa: F401 — racine du dépôt pour Config
+from Config.config import SIMULATEUR_API_BASE
 
 
 def _build_stream_url(

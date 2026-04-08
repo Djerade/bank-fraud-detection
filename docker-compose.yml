@@ -1,21 +1,26 @@
 # ZooKeeper + Kafka (1 broker) + Kafka UI + API simulateur (FastAPI).
 #
+# Environnement de travail prévu : tout tourne dans Docker ; l’hôte sert surtout à
+# lancer Compose et à ouvrir les URLs / curl sur les ports publiés.
+#
 # Démarrage (racine du dépôt) : docker compose up -d --build
 #
-# L’API monte le code depuis l’hôte et tourne avec uvicorn --reload : une sauvegarde
-# dans simulateur/ ou src/bank_fraud_detection/ redémarre le serveur (voir les logs).
+# L’API tourne avec uvicorn --reload et des volumes sur simulateur/, Config/ et
+# kafka-cluster/ : une sauvegarde dans ces dossiers est reflétée dans le conteneur
+# (reload API pour le code FastAPI ; scripts kafka-cluster utilisables via
+# docker compose exec simulateur-api, voir readme).
 # Sur Docker Desktop, si le reload ne part pas, décommentez WATCHFILES_FORCE_POLLING.
 #
 # Pour une image « figée » (sans montage ni reload), retirez volumes, command et
 # la variable WATCHFILES_FORCE_POLLING sous simulateur-api (le CMD du Dockerfile s’applique).
 #
-# Depuis la machine hôte :
+# Ports exposés sur l’hôte (accès navigateur / outils externes) :
 #   - Kafka : localhost:9092
 #   - ZooKeeper : localhost:2181
 #   - Kafka UI : http://127.0.0.1:8080
 #   - API : http://127.0.0.1:8000/docs
 #
-# Réseau interne (clients Docker) : kafka-1:29092
+# Réseau interne (services Compose) : kafka-1:29092
 #
 # Si tu passais d’un cluster à 3 brokers : `docker compose down -v` pour repartir sur des
 # volumes propres (anciens topics en réplication 3 peuvent poser problème avec 1 broker).
@@ -102,13 +107,13 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092
-      KAFKA_TOPIC_RAW: bank.transactions.raw
-      KAFKA_TOPIC_PROCESSED: bank.transactions.processed
+      KAFKA_TOPIC: bank.transactions.raw
       # Docker Desktop : décommenter si --reload ne réagit pas aux sauvegardes
       # WATCHFILES_FORCE_POLLING: "true"
     volumes:
-      - ./src/bank_fraud_detection:/app/src/bank_fraud_detection
       - ./simulateur:/app/simulateur
+      - ./Config:/app/Config
+      - ./kafka-cluster:/app/kafka-cluster
     command:
       - uvicorn
       - simulateur.app:app
@@ -120,7 +125,9 @@ services:
       - --reload-dir
       - /app/simulateur
       - --reload-dir
-      - /app/src/bank_fraud_detection
+      - /app/Config
+      - --reload-dir
+      - /app/kafka-cluster
     depends_on:
       kafka-1:
         condition: service_healthy

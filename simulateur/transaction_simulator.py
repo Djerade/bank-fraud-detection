@@ -2,22 +2,20 @@
 """
 Simulateur de transactions bancaires aligné sur les colonnes du jeu FraudShield.
 
-Génère des payloads JSON avec les mêmes clés que `CSV_TO_JSON_FIELD` dans
-`bank_fraud_detection.config`, pour tests locaux ou publication sur le topic Kafka brut
-(même format que `csv_to_kafka`).
+Génère des payloads JSON alignés sur le jeu FraudShield ; sortie stdout et/ou publication
+Kafka (topic unique du projet, voir `Config.config.TOPIC`).
 
 Vers Kafka, par défaut **une transaction toutes les 5 secondes** (débit type flux).
 Sortie stdout seule : génération en rafale sans pause (sauf si --interval-seconds).
 
-Usage (après ``pip install -e .`` ou ``pip install -r requirements.txt`` depuis la racine du dépôt) :
+Usage dans le conteneur API (Compose déjà démarré, variables Kafka définies dans le service) :
 
-  python -m simulateur.transaction_simulator --count 20
-  python -m simulateur.transaction_simulator --kafka --count 12
-  python -m simulateur.transaction_simulator --kafka --forever
-  python -m simulateur.transaction_simulator --kafka --interval-seconds 2 --count 50
+  docker compose exec simulateur-api python -m simulateur.transaction_simulator --count 20
+  docker compose exec simulateur-api python -m simulateur.transaction_simulator --kafka --count 12
+  docker compose exec simulateur-api python -m simulateur.transaction_simulator --kafka --forever
 
-Sans installation : ``PYTHONPATH=src:. python -m simulateur.transaction_simulator …`` (racine du dépôt).
-Dans l’image Docker Compose, ``PYTHONPATH`` inclut la racine du projet.
+Sur une machine avec venv du dépôt : ``python -m simulateur.transaction_simulator …``
+(``PYTHONPATH`` à la racine du projet si besoin).
 """
 from __future__ import annotations
 
@@ -29,7 +27,7 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
-from bank_fraud_detection.config import KAFKA_BOOTSTRAP_SERVERS, TOPIC_RAW
+from Config.config import KAFKA_BOOTSTRAP_SERVERS, TOPIC
 
 # Valeurs typiques observées dans FraudShield_Banking_Data.csv
 TRANSACTION_TYPES = ("POS", "ATM", "Online")
@@ -178,7 +176,7 @@ def main() -> None:
         default=KAFKA_BOOTSTRAP_SERVERS,
         help="Brokers Kafka (virgules)",
     )
-    p.add_argument("--topic", default=TOPIC_RAW, help="Topic Kafka de sortie")
+    p.add_argument("--topic", default=TOPIC, help="Topic Kafka de sortie")
     p.add_argument(
         "--sleep-ms",
         type=int,
