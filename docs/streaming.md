@@ -48,7 +48,7 @@ Les variables `KAFKA_BOOTSTRAP_SERVERS` et `KAFKA_TOPIC_RAW` s’appliquent à `
 
 ## Démarrer Kafka (local)
 
-Le dépôt définit un **cluster Kafka avec ZooKeeper** (3 brokers), **Kafka UI** et l’**API simulateur** dans un seul **`docker-compose.yml`** à la racine (services `zookeeper`, `kafka-1`, `kafka-2`, `kafka-3`, `kafka-ui`, `simulateur-api`, volumes persistants).
+Le dépôt définit un **Kafka avec ZooKeeper** (1 broker), **Kafka UI** et l’**API simulateur** dans un seul **`docker-compose.yml`** à la racine (services `zookeeper`, `kafka-1`, `kafka-ui`, `simulateur-api`, volumes persistants).
 
 À la racine du dépôt :
 
@@ -56,12 +56,12 @@ Le dépôt définit un **cluster Kafka avec ZooKeeper** (3 brokers), **Kafka UI*
 docker compose up -d
 ```
 
-- **Bootstrap depuis l’hôte** : `localhost:9092,localhost:9093,localhost:9094` (tous sur `127.0.0.1`)
+- **Bootstrap depuis l’hôte** : `localhost:9092` (`127.0.0.1`)
 - **ZooKeeper (hôte)** : `127.0.0.1:2181`
 - **Kafka UI** (image **provectuslabs/kafka-ui**) : [http://127.0.0.1:8080](http://127.0.0.1:8080) — topics, messages, brokers
-- **Réseau Docker** : `kafka-1:29092`, `kafka-2:29092`, `kafka-3:29092` (même port **interne** sur chaque hôte broker)
+- **Réseau Docker** : `kafka-1:29092` (listener **PLAINTEXT** interne)
 
-Réplication par défaut : facteur **3**, `min.insync.replicas` **2** (topics créés automatiquement héritent de ces défauts).
+Réplication par défaut : facteur **1**, `min.insync.replicas` **1** (topics créés automatiquement héritent de ces défauts).
 
 Changement majeur de stack ou données corrompues : supprimez les volumes nommés si besoin :
 
@@ -79,13 +79,13 @@ docker compose down
 ### Kafka + API simulateur (Compose)
 
 Le service **`simulateur-api`** (build `simulateur/Dockerfile`) utilise  
-**`KAFKA_BOOTSTRAP_SERVERS=kafka-1:29092,kafka-2:29092,kafka-3:29092`** (réseau interne Compose, pas `localhost`).
+**`KAFKA_BOOTSTRAP_SERVERS=kafka-1:29092`** (réseau interne Compose, pas `localhost`).
 
 ```bash
 docker compose up -d --build
 ```
 
-- Kafka (hôte) : ports **9092**, **9093**, **9094**
+- Kafka (hôte) : port **9092**
 - Kafka UI : `127.0.0.1:8080`
 - API : `127.0.0.1:8000` (Swagger `/docs`)
 
@@ -99,7 +99,7 @@ Le même fichier compose **monte le code** (`simulateur/`, `src/bank_fraud_detec
 
 | Variable | Défaut | Rôle |
 |----------|--------|------|
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092,localhost:9093,localhost:9094` | Liste des brokers (hôte) |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Broker (hôte) |
 | `KAFKA_TOPIC_RAW` | `bank.transactions.raw` | Topic d’ingestion CSV / simulateur |
 | `KAFKA_TOPIC_PROCESSED` | `bank.transactions.processed` | Topic par défaut du consommateur d’exemple |
 | `FRAUD_CSV_PATH` | `data/FraudShield_Banking_Data.csv` | Chemin du CSV source |
@@ -111,7 +111,7 @@ Le même fichier compose **monte le code** (`simulateur/`, `src/bank_fraud_detec
 Exporter les brokers si besoin :
 
 ```bash
-export KAFKA_BOOTSTRAP_SERVERS=localhost:9092,localhost:9093,localhost:9094
+export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 ```
 
 **Publier** des lignes CSV vers le topic brut :
@@ -171,13 +171,6 @@ python -m bank_fraud_detection.streaming.kafka_consume_sample --follow --from-be
 
 Autre topic (ex. traité) : `--topic bank.transactions.processed`.
 
-Raccourci shell :
-
-```bash
-chmod +x scripts/streaming/ingest_csv.sh
-./scripts/streaming/ingest_csv.sh
-```
-
 ---
 
 ## Format des messages
@@ -188,25 +181,25 @@ Les messages sont des objets JSON dont les clés correspondent à `CSV_TO_JSON_F
 
 ## Dépannage
 
-**Kafka « ne fonctionne pas »** — démarrez la stack et laissez **~30 s** (ZooKeeper puis les 3 brokers).
+**Kafka « ne fonctionne pas »** — démarrez la stack et laissez **~30 s** (ZooKeeper puis le broker).
 
 ```bash
 cd /chemin/vers/bank-fraud-detection
 docker compose up -d
-docker compose ps    # zookeeper, kafka-1, kafka-2, kafka-3 (et simulateur-api) « Up »
+docker compose ps    # zookeeper, kafka-1 (et simulateur-api) « Up »
 ```
 
-Vérification rapide : `./scripts/streaming/check_kafka.sh`. Dans les logs de chaque broker : **Kafka Server started**.
+Dans les logs du broker : **Kafka Server started**.
 
 Sans conteneur actif, les scripts Python afficheront `NoBrokersAvailable` ou des timeouts.
 
-**`docker compose ps` affiche `kafka` / `zookeeper` au lieu de `kafka-1` … `kafka-3`** — tu n’utilises pas le même compose que la racine du dépôt (ancien fichier, autre répertoire, ou conteneurs orphelins). À la racine du projet : `docker compose down --remove-orphans` puis `docker compose up -d --build` ; la colonne **SERVICE** doit lister `zookeeper`, `kafka-1`, `kafka-2`, `kafka-3`, etc.
+**`docker compose ps` affiche `kafka` / `zookeeper` au lieu de `kafka-1`** — tu n’utilises pas le même compose que la racine du dépôt (ancien fichier, autre répertoire, ou conteneurs orphelins). À la racine du projet : `docker compose down --remove-orphans` puis `docker compose up -d --build` ; la colonne **SERVICE** doit lister `zookeeper`, `kafka-1`, etc.
 
 **ZooKeeper « unhealthy »** — regarder `docker compose logs zookeeper --tail 100` (erreurs disque, permissions, données corrompues). Après correction du healthcheck dans le compose, recréer : `docker compose up -d --force-recreate zookeeper`.
 
-**Ports `9092` / `9093` / `9094`, `2181` ou `8080` déjà utilisés** — anciens conteneurs : `docker compose down --remove-orphans`, ou `docker ps` pour identifier le processus.
+**Ports `9092`, `2181` ou `8080` déjà utilisés** — anciens conteneurs : `docker compose down --remove-orphans`, ou `docker ps` pour identifier le processus.
 
-**Brokers qui redémarrent en boucle** — ZooKeeper doit être **Up** avant les brokers ; vérifiez `docker compose logs zookeeper --tail 80`. Ressources Docker insuffisantes (RAM) : réduire à un broker en dev ou augmenter les limites Docker Desktop.
+**Broker qui redémarre en boucle** — ZooKeeper doit être **Up** avant le broker ; vérifiez `docker compose logs zookeeper --tail 80`. Ressources Docker insuffisantes (RAM) : augmenter les limites Docker Desktop.
 
 **Exposer Kafka sur le réseau local** — adaptez les mappings `127.0.0.1:…` et les `KAFKA_ADVERTISED_LISTENERS` `PLAINTEXT_HOST://…` pour une IP/hostname joignables par les clients ; en production, sécurisez (TLS, auth).
 
@@ -218,15 +211,15 @@ Sans conteneur actif, les scripts Python afficheront `NoBrokersAvailable` ou des
 
 **`Started AdminServer … port 8080` dans les logs ZooKeeper** — interface **admin interne** au **conteneur** ZK (pas le port **8080** de **Kafka UI** sur l’hôte, sauf si tu as publié ce port par erreur). Ne pas confondre avec l’UI Kafka.
 
-**`InvalidReceiveException` sur les ports 9092–9094** — même idée : **HTTP** ou autre protocole sur un port **Kafka** (navigateur, healthcheck mal configuré). Kafka ferme la connexion (WARN) ; le cluster peut continuer à fonctionner.
+**`InvalidReceiveException` sur le port 9092** — même idée : **HTTP** ou autre protocole sur un port **Kafka** (navigateur, healthcheck mal configuré). Kafka ferme la connexion (WARN) ; le broker peut continuer à fonctionner.
 
-**`kafka-console-consumer` dans `docker compose exec kafka-1` + `localhost:9092` → WARN « node 2 … localhost:9093 could not be established »** — dans le conteneur, `localhost` est ce conteneur, pas les autres brokers. Utiliser le bootstrap **réseau Docker** (listener **PLAINTEXT**, port **29092**) :
+**`kafka-console-consumer` dans `docker compose exec kafka-1`** — utiliser le bootstrap **réseau Docker** (listener **PLAINTEXT**, port **29092**) plutôt que `localhost:9092` (listener **hôte** dans le conteneur) :
 
 ```bash
 docker compose exec kafka-1 kafka-console-consumer \
-  --bootstrap-server kafka-1:29092,kafka-2:29092,kafka-3:29092 \
+  --bootstrap-server kafka-1:29092 \
   --topic bank.transactions.raw \
   --from-beginning
 ```
 
-Sur la **machine hôte**, en revanche, garde `localhost:9092,9093,9094` (Python, outils locaux).
+Sur la **machine hôte**, utilisez `localhost:9092` (Python, outils locaux).

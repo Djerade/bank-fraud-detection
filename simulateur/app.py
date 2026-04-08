@@ -114,7 +114,7 @@ async def transaction_continuous(
 
     Avec ``to_kafka=true``, chaque ligne est **également** produite sur Kafka (même schéma JSON).
     Configure ``KAFKA_BOOTSTRAP_SERVERS`` (ex. dans docker-compose pour ``simulateur-api`` :
-    ``kafka-1:29092,...``). En local hors Docker : ``localhost:9092,9093,9094``.
+    ``kafka-1:29092``). En local hors Docker : ``localhost:9092``.
 
     Le client HTTP ferme la connexion pour arrêter (ex. Ctrl+C avec curl).
     """

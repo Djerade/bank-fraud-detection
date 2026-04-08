@@ -4,7 +4,8 @@ Consommateur minimal sur le cluster Kafka (kafka-python).
 
 Usage (depuis la racine du dépôt, cluster déjà démarré) :
   python kafka-cluster/consumer.py
-  python kafka-cluster/consumer.py --max 10 --from-beginning
+  python kafka-cluster/consumer.py --max 10
+  python kafka-cluster/consumer.py --only-new --follow
 
 Ctrl+C pour arrêter si --follow ou si vous laissez tourner après --max.
 """
@@ -17,16 +18,25 @@ import sys
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
 
-from config import TOPIC_DEMO, bootstrap_servers_list
+from config import TOPIC_RAW, bootstrap_servers_list
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Lit des messages JSON depuis un topic Kafka")
-    p.add_argument("--topic", default=TOPIC_DEMO, help="Topic à lire")
+    p.add_argument(
+        "--topic",
+        default=TOPIC_RAW,
+        help=f"Topic à lire (défaut : {TOPIC_RAW} / KAFKA_TOPIC_RAW)",
+    )
     p.add_argument(
         "--from-beginning",
         action="store_true",
-        help="Repartir du début du topic (sinon seulement les nouveaux messages)",
+        help="Lire depuis le début du topic (comportement par défaut ; gardé pour compatibilité)",
+    )
+    p.add_argument(
+        "--only-new",
+        action="store_true",
+        help="Ne lire que les messages produits après le démarrage (offset latest ; sans cela, tout l’historique)",
     )
     p.add_argument(
         "--max",
@@ -42,16 +52,24 @@ def main() -> None:
     args = p.parse_args()
     servers = bootstrap_servers_list()
 
-    # Bloquer indéfiniment entre messages si on attend un nombre précis ou du flux continu
-    block_forever = args.follow or args.max is not None
+    # Par défaut : earliest (sinon tout message déjà produit avant le consumer semble « invisible »).
+    offset_mode = "latest" if args.only_new else "earliest"
+
+    # Toujours attendre les messages sans couper au bout de 10 s (sinon topic perçu comme vide)
     consumer = KafkaConsumer(
         args.topic,
         bootstrap_servers=servers,
-        auto_offset_reset="earliest" if args.from_beginning else "latest",
+        auto_offset_reset=offset_mode,
         enable_auto_commit=True,
-        group_id="kafka-cluster-demo-consumer",
+        group_id="kafka-cluster-cli-consumer",
         value_deserializer=lambda b: json.loads(b.decode("utf-8")) if b else None,
-        consumer_timeout_ms=None if block_forever else 10_000,
+        consumer_timeout_ms=None,
+    )
+
+    print(
+        f"Lecture topic={args.topic!r} brokers={servers} offset={offset_mode!r} "
+        f"(utilisez --only-new pour ignorer l’historique). Ctrl+C pour arrêter.",
+        file=sys.stderr,
     )
 
     received = 0
@@ -75,7 +93,9 @@ def main() -> None:
 
     if received == 0:
         print(
-            "Aucun message (topic vide, timeout ou pas encore de producteur).",
+            "Aucun message reçu. Vérifiez topic et brokers ; qu’un producteur écrit bien "
+            "(ex. /transaction_continuous?to_kafka=true) ; et le groupe consumer "
+            "(offsets déjà commités → pas de relecture depuis le début).",
             file=sys.stderr,
         )
 

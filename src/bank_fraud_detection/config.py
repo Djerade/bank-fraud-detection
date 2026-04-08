@@ -12,7 +12,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 KAFKA_BOOTSTRAP_SERVERS: str = os.environ.get(
     "KAFKA_BOOTSTRAP_SERVERS",
-    "localhost:9092,localhost:9093,localhost:9094",
+    "localhost:9092",
 )
 
 TOPIC_RAW: str = os.environ.get("KAFKA_TOPIC_RAW", "bank.transactions.raw")

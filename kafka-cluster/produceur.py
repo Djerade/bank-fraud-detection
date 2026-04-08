@@ -19,12 +19,16 @@ from datetime import datetime, timezone
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
-from config import TOPIC_DEMO, bootstrap_servers_list
+from config import TOPIC_RAW, bootstrap_servers_list
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Envoie des messages JSON sur un topic Kafka")
-    p.add_argument("--topic", default=TOPIC_DEMO, help="Topic de sortie")
+    p.add_argument(
+        "--topic",
+        default=TOPIC_RAW,
+        help=f"Topic de sortie (défaut : {TOPIC_RAW} / KAFKA_TOPIC_RAW)",
+    )
     p.add_argument("--count", type=int, default=3, help="Nombre de messages")
     p.add_argument(
         "--sleep",
