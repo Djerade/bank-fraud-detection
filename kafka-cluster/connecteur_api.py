@@ -2,16 +2,21 @@
 """
 Connecteur HTTP : récupère le flux NDJSON de l’API simulateur (GET /transaction_continuous).
 
-L’API doit tourner (ex. docker compose → http://127.0.0.1:8000).
+Publication **Kafka** côté connecteur (pont API → topic) :
 
-Usage (depuis la racine du dépôt) :
-  python kafka-cluster/connecteur_api.py
-  python kafka-cluster/connecteur_api.py --max 20
-  python kafka-cluster/connecteur_api.py --base-url http://127.0.0.1:8000 --fraud-rate 0.1
+  python kafka-cluster/connecteur_api.py --to-kafka --max 100
+  # Docker (API et Kafka joignables depuis simulateur-api) :
+  docker compose exec simulateur-api bash -lc \\
+    "cd /app/kafka-cluster && python connecteur_api.py --to-kafka --max 50 --base-url http://127.0.0.1:8000"
 
-Variables d’environnement : SIMULATEUR_API_BASE (voir ``Config/config.py``).
+Par défaut l’URL utilise ``to_kafka=false`` : seul ce script envoie sur Kafka si vous passez
+``--to-kafka``. Utilisez ``--api-to-kafka`` seulement si vous voulez **aussi** que l’API
+publie en parallèle (doublons sur le topic).
 
-Aucune dépendance HTTP supplémentaire (urllib stdlib).
+Variables d’environnement : ``SIMULATEUR_API_BASE``, ``KAFKA_BOOTSTRAP_SERVERS``, ``KAFKA_TOPIC``
+(voir ``Config/config.py``).
+
+HTTP : urllib (stdlib). Kafka : kafka-python.
 """
 from __future__ import annotations
 
@@ -23,7 +28,7 @@ import urllib.parse
 import urllib.request
 
 import _repo_root  # noqa: F401 — racine du dépôt pour Config
-from Config.config import SIMULATEUR_API_BASE
+from Config.config import SIMULATEUR_API_BASE, TOPIC, bootstrap_servers_list
 
 
 def _build_stream_url(
@@ -73,7 +78,7 @@ def iter_transactions_from_api(url: str):
 
 def main() -> None:
     p = argparse.ArgumentParser(
-        description="Lit le flux /transaction_continuous de l’API simulateur (NDJSON)."
+        description="Lit le flux /transaction_continuous (NDJSON) ; option --to-kafka pour publier sur Kafka."
     )
     p.add_argument(
         "--base-url",
@@ -87,15 +92,25 @@ def main() -> None:
         help="Transmis à l’API (query fraud_rate)",
     )
     p.add_argument(
+        "--to-kafka",
+        action="store_true",
+        help="Publie chaque transaction reçue sur le topic Kafka (Config / --topic)",
+    )
+    p.add_argument(
+        "--topic",
+        default=None,
+        help=f"Topic Kafka si --to-kafka (défaut : {TOPIC} / KAFKA_TOPIC)",
+    )
+    p.add_argument(
         "--api-to-kafka",
         action="store_true",
-        help="Passe to_kafka=true à l’API (l’API publie aussi sur Kafka en parallèle du flux HTTP)",
+        help="Passe to_kafka=true à l’API (doublons si combiné avec --to-kafka)",
     )
     p.add_argument(
         "--max",
         type=int,
         default=None,
-        help="Arrêt après ce nombre de transactions (défaut : illimité, Ctrl+C pour anrrêter)",
+        help="Arrêt après ce nombre de transactions (défaut : illimité, Ctrl+C pour arrêter)",
     )
     p.add_argument(
         "--quiet",
@@ -110,6 +125,12 @@ def main() -> None:
     )
     args = p.parse_args()
 
+    if args.to_kafka and args.api_to_kafka:
+        print(
+            "Attention : --to-kafka et --api-to-kafka → chaque message peut être publié **deux fois**.",
+            file=sys.stderr,
+        )
+
     url = _build_stream_url(
         args.base_url,
         fraud_rate=args.fraud_rate,
@@ -117,8 +138,26 @@ def main() -> None:
     )
     print(f"Connexion : {url}", file=sys.stderr)
 
+    kafka_topic = args.topic or TOPIC
+    producer = None
+    if args.to_kafka:
+        from kafka import KafkaProducer
+
+        producer = KafkaProducer(
+            bootstrap_servers=bootstrap_servers_list(),
+            value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
+            key_serializer=lambda k: str(k).encode("utf-8") if k is not None else None,
+            acks="all",
+            retries=3,
+        )
+        print(
+            f"Publication Kafka activée → topic={kafka_topic!r} brokers={bootstrap_servers_list()}",
+            file=sys.stderr,
+        )
+
     out_f = open(args.out_jsonl, "a", encoding="utf-8") if args.out_jsonl else None
     n = 0
+    kafka_sent = 0
     try:
         for row in iter_transactions_from_api(url):
             n += 1
@@ -127,15 +166,29 @@ def main() -> None:
             if out_f is not None:
                 out_f.write(json.dumps(row, ensure_ascii=False) + "\n")
                 out_f.flush()
+            if producer is not None:
+                key = row.get("transaction_id")
+                try:
+                    future = producer.send(kafka_topic, value=row, key=key)
+                    future.get(timeout=15)
+                    kafka_sent += 1
+                except Exception as e:
+                    print(f"Erreur envoi Kafka : {e}", file=sys.stderr)
+                    raise SystemExit(1) from e
             if args.max is not None and n >= args.max:
                 break
     except KeyboardInterrupt:
         print(file=sys.stderr)
     finally:
+        if producer is not None:
+            producer.flush()
+            producer.close()
         if out_f is not None:
             out_f.close()
 
     print(f"Reçu {n} transaction(s).", file=sys.stderr)
+    if producer is not None:
+        print(f"Publié sur Kafka : {kafka_sent} message(s).", file=sys.stderr)
 
 
 if __name__ == "__main__":

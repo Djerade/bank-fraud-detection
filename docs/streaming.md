@@ -8,7 +8,7 @@ Simulation de transactions (jeu **FraudShield**, CSV de référence sous `docs/F
 | `simulateur/` | CLI `python -m simulateur.transaction_simulator`, **API FastAPI** (`app.py`), génération JSON et envoi Kafka. |
 | `kafka-cluster/produceur.py` | Producteur minimal de démo (JSON). |
 | `kafka-cluster/consumer.py` | Consommateur minimal (affichage des messages). |
-| `kafka-cluster/connecteur_api.py` | Lit le flux NDJSON de `GET /transaction_continuous` (option `--api-to-kafka`). |
+| `kafka-cluster/connecteur_api.py` | Lit le flux NDJSON de `GET /transaction_continuous` ; **`--to-kafka`** publie chaque ligne sur le topic (pont API → Kafka). |
 
 Un seul topic Kafka est utilisé par défaut (`KAFKA_TOPIC`, défaut `bank.transactions.raw`). Les scripts ajoutent automatiquement la racine du dépôt au `PYTHONPATH` (`_repo_root.py`).
 
@@ -47,7 +47,7 @@ Les variables `KAFKA_BOOTSTRAP_SERVERS` et `KAFKA_TOPIC` s’appliquent à l’A
 
 ## Démarrer Kafka (local)
 
-Le dépôt définit un **Kafka avec ZooKeeper** (1 broker), **Kafka UI** et l’**API simulateur** dans un seul **`docker-compose.yml`** à la racine (services `zookeeper`, `kafka-1`, `kafka-ui`, `simulateur-api`, volumes persistants).
+Le dépôt définit un **Kafka avec ZooKeeper** (1 broker), **Kafka UI** et l’**API simulateur** dans un seul **`docker-compose.yml`** à la racine (services `zookeeper`, `kafka`, `kafka-ui`, `simulateur-api`, volumes persistants).
 
 À la racine du dépôt :
 
@@ -58,7 +58,7 @@ docker compose up -d
 - **Bootstrap depuis l’hôte** : `localhost:9092` (`127.0.0.1`)
 - **ZooKeeper (hôte)** : `127.0.0.1:2181`
 - **Kafka UI** (image **provectuslabs/kafka-ui**) : [http://127.0.0.1:8080](http://127.0.0.1:8080) — topics, messages, brokers
-- **Réseau Docker** : `kafka-1:29092` (listener **PLAINTEXT** interne)
+- **Réseau Docker** : `kafka:29092` (listener **PLAINTEXT** interne)
 
 Réplication par défaut : facteur **1**, `min.insync.replicas` **1** (topics créés automatiquement héritent de ces défauts).
 
@@ -78,7 +78,7 @@ docker compose down
 ### Kafka + API simulateur (Compose)
 
 Le service **`simulateur-api`** (build `simulateur/Dockerfile`) utilise  
-**`KAFKA_BOOTSTRAP_SERVERS=kafka-1:29092`** (réseau interne Compose, pas `localhost`).
+**`KAFKA_BOOTSTRAP_SERVERS=kafka:29092`** (réseau interne Compose, pas `localhost`).
 
 ```bash
 docker compose up -d --build
@@ -107,7 +107,7 @@ Le compose **monte** `simulateur/`, `Config/` et `kafka-cluster/` dans `simulate
 
 ### Depuis Docker (recommandé)
 
-Même réseau que Kafka, brokers déjà à `kafka-1:29092` dans le service `simulateur-api` :
+Même réseau que Kafka, brokers déjà à `kafka:29092` dans le service `simulateur-api` :
 
 ```bash
 docker compose exec simulateur-api python -m simulateur.transaction_simulator --kafka --count 20
@@ -121,6 +121,9 @@ docker compose exec simulateur-api bash -lc "cd /app/kafka-cluster && python con
 ```bash
 python kafka-cluster/connecteur_api.py --max 10
 python kafka-cluster/connecteur_api.py --out-jsonl recu.jsonl
+python kafka-cluster/connecteur_api.py --to-kafka --max 50
+docker compose exec simulateur-api bash -lc "cd /app/kafka-cluster && python connecteur_api.py --to-kafka --max 30 --base-url http://127.0.0.1:8000"
+# Variante : l’API publie aussi sur Kafka (risque de doublons avec --to-kafka) :
 python kafka-cluster/connecteur_api.py --api-to-kafka --max 5
 ```
 
@@ -153,14 +156,14 @@ Objets **JSON** alignés sur les champs du jeu FraudShield (identifiants de tran
 ```bash
 cd /chemin/vers/bank-fraud-detection
 docker compose up -d
-docker compose ps    # zookeeper, kafka-1 (et simulateur-api) « Up »
+docker compose ps    # zookeeper, kafka (et simulateur-api) « Up »
 ```
 
 Dans les logs du broker : **Kafka Server started**.
 
 Sans conteneur actif, les scripts Python afficheront `NoBrokersAvailable` ou des timeouts.
 
-**`docker compose ps` affiche `kafka` / `zookeeper` au lieu de `kafka-1`** — tu n’utilises pas le même compose que la racine du dépôt (ancien fichier, autre répertoire, ou conteneurs orphelins). À la racine du projet : `docker compose down --remove-orphans` puis `docker compose up -d --build` ; la colonne **SERVICE** doit lister `zookeeper`, `kafka-1`, etc.
+**`docker compose ps` affiche `kafka` / `zookeeper` au lieu de `kafka`** — tu n’utilises pas le même compose que la racine du dépôt (ancien fichier, autre répertoire, ou conteneurs orphelins). À la racine du projet : `docker compose down --remove-orphans` puis `docker compose up -d --build` ; la colonne **SERVICE** doit lister `zookeeper`, `kafka`, etc.
 
 **ZooKeeper « unhealthy »** — regarder `docker compose logs zookeeper --tail 100` (erreurs disque, permissions, données corrompues). Après correction du healthcheck dans le compose, recréer : `docker compose up -d --force-recreate zookeeper`.
 
@@ -180,11 +183,11 @@ Sans conteneur actif, les scripts Python afficheront `NoBrokersAvailable` ou des
 
 **`InvalidReceiveException` sur le port 9092** — même idée : **HTTP** ou autre protocole sur un port **Kafka** (navigateur, healthcheck mal configuré). Kafka ferme la connexion (WARN) ; le broker peut continuer à fonctionner.
 
-**`kafka-console-consumer` dans `docker compose exec kafka-1`** — utiliser le bootstrap **réseau Docker** (listener **PLAINTEXT**, port **29092**) plutôt que `localhost:9092` (listener **hôte** dans le conteneur) :
+**`kafka-console-consumer` dans `docker compose exec kafka`** — utiliser le bootstrap **réseau Docker** (listener **PLAINTEXT**, port **29092**) plutôt que `localhost:9092` (listener **hôte** dans le conteneur) :
 
 ```bash
-docker compose exec kafka-1 kafka-console-consumer \
-  --bootstrap-server kafka-1:29092 \
+docker compose exec kafka kafka-console-consumer \
+  --bootstrap-server kafka:29092 \
   --topic bank.transactions.raw \
   --from-beginning
 ```

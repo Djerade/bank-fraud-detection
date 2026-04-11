@@ -20,7 +20,7 @@
 #   - Kafka UI : http://127.0.0.1:8080
 #   - API : http://127.0.0.1:8000/docs
 #
-# Réseau interne (services Compose) : kafka-1:29092
+# Réseau interne (services Compose) : kafka:29092
 #
 # Si tu passais d’un cluster à 3 brokers : `docker compose down -v` pour repartir sur des
 # volumes propres (anciens topics en réplication 3 peuvent poser problème avec 1 broker).
@@ -47,9 +47,9 @@ services:
       retries: 10
       start_period: 60s
 
-  kafka-1:
+  kafka:
     image: confluentinc/cp-kafka:7.6.1
-    hostname: kafka-1
+    hostname: kafka
     restart: unless-stopped
     depends_on:
       zookeeper:
@@ -62,7 +62,7 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -71,7 +71,7 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     volumes:
-      - kafka-1-data:/var/lib/kafka/data
+      - kafka-data:/var/lib/kafka/data
     networks:
       - bank-fraud-detection-network
     healthcheck:
@@ -87,13 +87,13 @@ services:
     hostname: kafka-ui
     restart: unless-stopped
     depends_on:
-      kafka-1:
+      kafka:
         condition: service_healthy
     ports:
       - "127.0.0.1:8080:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: bank-fraud-detection
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-1:29092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     networks:
       - bank-fraud-detection-network
@@ -106,7 +106,7 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC: bank.transactions.raw
       # Docker Desktop : décommenter si --reload ne réagit pas aux sauvegardes
       # WATCHFILES_FORCE_POLLING: "true"
@@ -129,7 +129,7 @@ services:
       - --reload-dir
       - /app/kafka-cluster
     depends_on:
-      kafka-1:
+      kafka:
         condition: service_healthy
     networks:
       - bank-fraud-detection-network
@@ -141,4 +141,4 @@ networks:
 volumes:
   zookeeper-data:
   zookeeper-log:
-  kafka-1-data:
+  kafka-data:

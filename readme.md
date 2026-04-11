@@ -89,7 +89,7 @@ Le dépôt est conçu pour être utilisé **via Docker** ; un venv local reste u
    - Le premier build de l’image API peut être long.
 
    Sans reconstruire l’API :  
-   `docker compose up -d zookeeper kafka-1 kafka-ui simulateur-api`
+   `docker compose up -d zookeeper kafka kafka-ui simulateur-api`
 
    Les dossiers `simulateur/`, `Config/` et `kafka-cluster/` sont montés dans `simulateur-api` avec **`uvicorn --reload`**. Sur Docker Desktop, si le reload ne part pas, décommente `WATCHFILES_FORCE_POLLING` sous `simulateur-api` dans `docker-compose.yml`.
 

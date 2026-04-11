@@ -50,6 +50,13 @@ def main() -> None:
         action="store_true",
         help="Après --max atteint ou sans --max, continuer à poller (temps réel)",
     )
+    p.add_argument(
+        "--group-id",
+        default="kafka-cluster-cli-consumer",
+        metavar="ID",
+        help="Groupe consumer Kafka (changer de nom pour relire depuis le début si le groupe "
+        "existant a déjà consommé tout le topic)",
+    )
     args = p.parse_args()
     servers = bootstrap_servers_list()
 
@@ -63,13 +70,19 @@ def main() -> None:
         bootstrap_servers=servers,
         auto_offset_reset=offset_mode,
         enable_auto_commit=True,
-        group_id="kafka-cluster-cli-consumer",
+        group_id=args.group_id,
         value_deserializer=lambda b: json.loads(b.decode("utf-8")) if b else None,
     )
 
     print(
-        f"Lecture topic={args.topic!r} brokers={servers} offset={offset_mode!r} "
-        f"(utilisez --only-new pour ignorer l’historique). Ctrl+C pour arrêter.",
+        f"Lecture topic={args.topic!r} group={args.group_id!r} brokers={servers} "
+        f"auto_offset_reset={offset_mode!r}. Ctrl+C pour arrêter.",
+        file=sys.stderr,
+    )
+    print(
+        "Astuce : sans message, soit personne n’écrit sur le topic (lancez un producteur dans un "
+        "autre terminal), soit ce groupe a déjà lu jusqu’à la fin — essayez "
+        "--group-id lecteur-demo-1 pour repartir comme un nouveau lecteur (avec earliest).",
         file=sys.stderr,
     )
 
@@ -94,9 +107,9 @@ def main() -> None:
 
     if received == 0:
         print(
-            "Aucun message reçu. Vérifiez topic et brokers ; qu’un producteur écrit bien "
-            "(ex. /transaction_continuous?to_kafka=true) ; et le groupe consumer "
-            "(offsets déjà commités → pas de relecture depuis le début).",
+            "Aucun message reçu : lancez un producteur (produceur.py, connecteur_api.py "
+            "--to-kafka, ou simulateur --kafka), ou utilisez --group-id <nouveau> pour "
+            "repartir de earliest si l’ancien groupe était déjà à jour du topic.",
             file=sys.stderr,
         )
 

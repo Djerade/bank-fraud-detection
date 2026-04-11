@@ -106,7 +106,7 @@ async def transaction_continuous(
     Flux NDJSON infini : par période d’environ 1 s, envoie 5 à 7 transactions.
 
     Avec ``to_kafka=true``, chaque ligne est **également** produite sur Kafka (même schéma JSON).
-    Les brokers sont lus via ``KAFKA_BOOTSTRAP_SERVERS`` (dans Compose : ``kafka-1:29092``
+    Les brokers sont lus via ``KAFKA_BOOTSTRAP_SERVERS`` (dans Compose : ``kafka:29092``
     pour le conteneur API ; depuis l’hôte vers Kafka exposé : ``localhost:9092``).
 
     Le client HTTP ferme la connexion pour arrêter (ex. Ctrl+C avec curl).
