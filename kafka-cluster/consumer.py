@@ -6,6 +6,7 @@ Usage (depuis la racine du dépôt, cluster déjà démarré) :
   python kafka-cluster/consumer.py
   python kafka-cluster/consumer.py --max 10
   python kafka-cluster/consumer.py --only-new --follow
+  python kafka-cluster/consumer.py --max 100 --out-jsonl recu.jsonl --quiet
 
 Ctrl+C pour arrêter si --follow ou si vous laissez tourner après --max.
 """
@@ -57,6 +58,17 @@ def main() -> None:
         help="Groupe consumer Kafka (changer de nom pour relire depuis le début si le groupe "
         "existant a déjà consommé tout le topic)",
     )
+    p.add_argument(
+        "--out-jsonl",
+        metavar="FICHIER",
+        default=None,
+        help="Enregistre chaque valeur de message en une ligne JSON (NDJSON), prêt pour pandas ou scripts",
+    )
+    p.add_argument(
+        "--quiet",
+        action="store_true",
+        help="N’affiche pas les lignes partition/offset/value sur stdout (utile avec --out-jsonl)",
+    )
     args = p.parse_args()
     servers = bootstrap_servers_list()
 
@@ -86,15 +98,20 @@ def main() -> None:
         file=sys.stderr,
     )
 
+    out_f = open(args.out_jsonl, "a", encoding="utf-8") if args.out_jsonl else None
     received = 0
     try:
         for msg in consumer:
             received += 1
-            print(
-                f"partition={msg.partition} offset={msg.offset} key={msg.key!r} "
-                f"value={msg.value!r}",
-                flush=True,
-            )
+            if not args.quiet:
+                print(
+                    f"partition={msg.partition} offset={msg.offset} key={msg.key!r} "
+                    f"value={msg.value!r}",
+                    flush=True,
+                )
+            if out_f is not None and msg.value is not None:
+                out_f.write(json.dumps(msg.value, ensure_ascii=False) + "\n")
+                out_f.flush()
             if args.max is not None and received >= args.max and not args.follow:
                 break
     except KafkaError as e:
@@ -104,6 +121,8 @@ def main() -> None:
         print(file=sys.stderr)
     finally:
         consumer.close()
+        if out_f is not None:
+            out_f.close()
 
     if received == 0:
         print(
@@ -112,6 +131,8 @@ def main() -> None:
             "repartir de earliest si l’ancien groupe était déjà à jour du topic.",
             file=sys.stderr,
         )
+    elif args.out_jsonl:
+        print(f"Enregistré {received} message(s) dans {args.out_jsonl!r}.", file=sys.stderr)
 
 
 if __name__ == "__main__":

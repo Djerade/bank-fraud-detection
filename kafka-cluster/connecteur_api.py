@@ -18,6 +18,7 @@ Variables d’environnement : ``SIMULATEUR_API_BASE``, ``KAFKA_BOOTSTRAP_SERVERS
 
 HTTP : urllib (stdlib). Kafka : kafka-python.
 """
+
 from __future__ import annotations
 
 import argparse
