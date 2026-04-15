@@ -134,6 +134,64 @@ services:
     networks:
       - bank-fraud-detection-network
 
+  # --- Spark (architecture Lambda) : vitesse = streaming Kafka → bronze ; batch = agrégats → gold ---
+  spark-speed:
+    build:
+      context: .
+      dockerfile: spark/Dockerfile
+    image: bank-fraud-detection-spark:latest
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: bank.transactions.raw
+      SPARK_BRONZE_PATH: /data/lake/bronze/transactions
+      SPARK_CHECKPOINT_SPEED: /checkpoint/speed-layer
+    volumes:
+      - spark-lake:/data/lake
+      - spark-checkpoint-speed:/checkpoint
+      - ./spark_lambda:/opt/spark/work-dir/spark_lambda
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - bank-fraud-detection-network
+    ports:
+      - "4040:4040"
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - /opt/spark/work-dir/spark_lambda/speed_layer.py
+
+  # Job batch ponctuel : docker compose --profile batch run --rm spark-batch
+  spark-batch:
+    profiles:
+      - batch
+    build:
+      context: .
+      dockerfile: spark/Dockerfile
+    image: bank-fraud-detection-spark:latest
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: bank.transactions.raw
+      SPARK_BRONZE_PATH: /data/lake/bronze/transactions
+      SPARK_GOLD_PATH: /data/lake/gold/batch_summary
+    volumes:
+      - spark-lake:/data/lake
+      - ./spark_lambda:/opt/spark/work-dir/spark_lambda
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - bank-fraud-detection-network
+    ports:
+      - "4041:4041"
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - /opt/spark/work-dir/spark_lambda/batch_layer.py
+
 networks:
   bank-fraud-detection-network:
     driver: bridge
@@ -142,3 +200,5 @@ volumes:
   zookeeper-data:
   zookeeper-log:
   kafka-data:
+  spark-lake:
+  spark-checkpoint-speed:

@@ -22,8 +22,11 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 | `Config/` | Paramètres Kafka partagés (brokers, **un seul topic** `KAFKA_TOPIC`) pour l’API et les scripts. |
 | `kafka-cluster/` | Scripts CLI : producteur / consommateur Kafka, connecteur vers l’API (montés dans l’image API pour `docker compose exec`). |
 | `simulateur/` | **CLI** + **API FastAPI** (génération JSON, Kafka) + `Dockerfile` pour Compose. |
+| `spark_lambda/` | Jobs **Spark Lambda** : couche **vitesse** (streaming Kafka → lac bronze) + couche **batch** (agrégats → gold). |
+| `spark/Dockerfile` | Image Spark 3.5 + connecteur Kafka pour les services Compose `spark-speed` / `spark-batch`. |
 | `docs/streaming.md` | Détail du streaming Kafka, variables d’environnement, commandes. |
-| `docker-compose.yml` | **ZooKeeper + Kafka** (1 broker) + **Kafka UI** + **`simulateur-api`** (fichier unique à la racine). |
+| `docs/spark-lambda.md` | Démarrage des deux couches Spark, profil `batch`, variables. |
+| `docker-compose.yml` | ZooKeeper, Kafka, Kafka UI, **simulateur-api**, **spark-speed**, **spark-batch** (profil `batch`). |
 | `pyproject.toml` | Métadonnée du projet et liste des dépendances (pins). |
 | `requirements.txt` | Installe le package en éditable + dépendances cœur. |
 | `requirements-notebooks.txt` | Même chose + extra `[notebooks]` (JupyterLab, visualisation). |
@@ -117,6 +120,14 @@ Le dépôt est conçu pour être utilisé **via Docker** ; un venv local reste u
    docker compose exec simulateur-api bash -lc "cd /app/kafka-cluster && python produceur.py --count 3"
    ```
 
+5. **Spark (Lambda)** — le service **`spark-speed`** ingère Kafka vers le lac **bronze** ; le job **`spark-batch`** (profil `batch`) écrit les agrégats **gold**.
+
+   ```bash
+   docker compose --profile batch run --rm spark-batch
+   ```
+
+   Détail : **[docs/spark-lambda.md](docs/spark-lambda.md)** (premier lancement Spark : téléchargement du connecteur Kafka, quelques minutes possible).
+
 Détails, variables d’environnement et format JSON : **[docs/streaming.md](docs/streaming.md)**. Un seul topic Kafka est défini par `KAFKA_TOPIC` (défaut `bank.transactions.raw`).
 
 ---
@@ -139,11 +150,14 @@ bank-fraud-detection/
 ├── Config/                     # Config Kafka partagée (API simulateur)
 ├── simulateur/                 # CLI + API FastAPI + Dockerfile (image Compose)
 ├── kafka-cluster/              # Scripts : connecteur API, producteur / consommateur Kafka
+├── spark_lambda/               # Spark Lambda : speed_layer + batch_layer
+├── spark/                      # Dockerfile Spark + connecteur Kafka
 ├── docs/
 │   ├── streaming.md            # Guide Kafka détaillé
+│   ├── spark-lambda.md         # Deux couches Spark (Compose)
 │   └── FraudShield_Banking_Data.csv  # Données de référence (exemple)
 ├── notebooks/                  # Analyses (Jupyter)
-├── docker-compose.yml          # ZooKeeper, Kafka (1 broker), Kafka UI, simulateur-api
+├── docker-compose.yml          # Kafka stack + simulateur-api + spark-speed + spark-batch
 ├── pyproject.toml
 ├── requirements.txt
 ├── requirements-notebooks.txt

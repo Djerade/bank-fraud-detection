@@ -26,7 +26,10 @@ notebooks = [
     "jupyterlab==4.3.1",
     "ipykernel==6.29.5",
 ]
+spark = [
+    "pyspark==3.5.3",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["simulateur*", "Config*"]
+include = ["simulateur*", "Config*", "spark_lambda*"]
