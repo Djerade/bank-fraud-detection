@@ -19,6 +19,7 @@
 #   - ZooKeeper : localhost:2181
 #   - Kafka UI : http://127.0.0.1:8080
 #   - API : http://127.0.0.1:8000/docs
+#   - Dashboard fraude : http://127.0.0.1:8501
 #
 # Réseau interne (services Compose) : kafka:29092
 #
@@ -128,6 +129,44 @@ services:
       - /app/Config
       - --reload-dir
       - /app/kafka-cluster
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - bank-fraud-detection-network
+
+  # Consomme le topic brut en parallèle du Spark ; écrit les prédictions sur un topic dédié.
+  fraud-scorer:
+    build:
+      context: .
+      dockerfile: fraud_scoring/Dockerfile
+    image: bank-fraud-detection-fraud-scorer:latest
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC_IN: bank.transactions.raw
+      KAFKA_TOPIC_OUT: bank.transactions.scored
+      FRAUD_MODEL_PATH: /app/models/fraud_classifier.joblib
+    volumes:
+      - ./models:/app/models:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - bank-fraud-detection-network
+
+  fraud-dashboard:
+    build:
+      context: .
+      dockerfile: fraud_dashboard/Dockerfile
+    image: bank-fraud-detection-fraud-dashboard:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC_SCORED: bank.transactions.scored
+      DASHBOARD_KAFKA_GROUP: fraud-dashboard-ui
     depends_on:
       kafka:
         condition: service_healthy

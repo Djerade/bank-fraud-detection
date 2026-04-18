@@ -7,6 +7,7 @@ Variables d'environnement (optionnelles) :
   KAFKA_BOOTSTRAP_SERVERS — liste séparée par des virgules (défaut : localhost:9092)
   KAFKA_TOPIC             — nom du topic (défaut : bank.transactions.raw) ;
                             si absent, repli sur l’ancienne variable KAFKA_TOPIC_RAW
+  KAFKA_TOPIC_SCORED      — sortie du service fraud-scorer (défaut : bank.transactions.scored)
   SIMULATEUR_API_BASE     — URL de base de l'API FastAPI (défaut : http://127.0.0.1:8000)
 """
 from __future__ import annotations
@@ -24,6 +25,9 @@ TOPIC: str = os.environ.get("KAFKA_TOPIC") or os.environ.get(
     "KAFKA_TOPIC_RAW",
     "bank.transactions.raw",
 )
+
+# Sortie du service ``fraud_scoring`` (transactions + score / prédiction)
+TOPIC_SCORED: str = os.environ.get("KAFKA_TOPIC_SCORED", "bank.transactions.scored")
 
 SIMULATEUR_API_BASE: str = os.environ.get(
     "SIMULATEUR_API_BASE",

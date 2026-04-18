@@ -13,6 +13,7 @@ dependencies = [
     "pandas==2.2.3",
     "pyarrow==18.1.0",
     "joblib==1.4.2",
+    "scikit-learn==1.5.2",
     "fastapi==0.115.5",
     "uvicorn[standard]==0.32.1",
     "pydantic==2.9.2",
@@ -25,12 +26,18 @@ notebooks = [
     "seaborn==0.13.2",
     "jupyterlab==4.3.1",
     "ipykernel==6.29.5",
-    "scikit-learn==1.5.2",
 ]
 spark = [
     "pyspark==3.5.3",
 ]
+dashboard = [
+    "streamlit==1.40.2",
+    "plotly==5.24.1",
+]
+docs = [
+    "python-docx==1.1.2",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["simulateur*", "Config*", "spark_lambda*"]
+include = ["simulateur*", "Config*", "spark_lambda*", "fraud_scoring*", "fraud_dashboard*"]
