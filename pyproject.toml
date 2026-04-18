@@ -25,6 +25,7 @@ notebooks = [
     "seaborn==0.13.2",
     "jupyterlab==4.3.1",
     "ipykernel==6.29.5",
+    "scikit-learn==1.5.2",
 ]
 spark = [
     "pyspark==3.5.3",
