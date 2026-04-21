@@ -31,7 +31,7 @@ TOPIC_SCORED: str = os.environ.get("KAFKA_TOPIC_SCORED", "bank.transactions.scor
 
 SIMULATEUR_API_BASE: str = os.environ.get(
     "SIMULATEUR_API_BASE",
-    "http://127.0.0.1:8000/transaction_continuous",
+    "http://127.0.0.1:8000/transaction_continuous"
 )
 
 
