@@ -2,16 +2,12 @@
 """
 Connecteur HTTP : récupère le flux NDJSON de l’API simulateur (GET /transaction_continuous).
 
-Publication **Kafka** côté connecteur (pont API → topic) :
+Publication **Kafka** côté connecteur uniquement (l’API ne publie que du HTTP / NDJSON) :
 
   python kafka-cluster/connecteur_api.py --to-kafka --max 100
   # Docker (API et Kafka joignables depuis simulateur-api) :
   docker compose exec simulateur-api bash -lc \\
     "cd /app/kafka-cluster && python connecteur_api.py --to-kafka --max 50 --base-url http://127.0.0.1:8000"
-
-Par défaut l’URL utilise ``to_kafka=false`` : seul ce script envoie sur Kafka si vous passez
-``--to-kafka``. Utilisez ``--api-to-kafka`` seulement si vous voulez **aussi** que l’API
-publie en parallèle (doublons sur le topic).
 
 Variables d’environnement : ``SIMULATEUR_API_BASE``, ``KAFKA_BOOTSTRAP_SERVERS``, ``KAFKA_TOPIC``
 (voir ``Config/config.py``).
@@ -32,19 +28,9 @@ import _repo_root  # noqa: F401 — racine du dépôt pour Config
 from Config.config import SIMULATEUR_API_BASE, TOPIC, bootstrap_servers_list
 
 
-def _build_stream_url(
-    base: str,
-    *,
-    fraud_rate: float,
-    to_kafka: bool,
-) -> str:
+def _build_stream_url(base: str, *, fraud_rate: float) -> str:
     base = base.rstrip("/")
-    q = urllib.parse.urlencode(
-        {
-            "fraud_rate": fraud_rate,
-            "to_kafka": str(to_kafka).lower(),
-        }
-    )
+    q = urllib.parse.urlencode({"fraud_rate": fraud_rate})
     return f"{base}/transaction_continuous?{q}"
 
 
@@ -103,11 +89,6 @@ def main() -> None:
         help=f"Topic Kafka si --to-kafka (défaut : {TOPIC} / KAFKA_TOPIC)",
     )
     p.add_argument(
-        "--api-to-kafka",
-        action="store_true",
-        help="Passe to_kafka=true à l’API (doublons si combiné avec --to-kafka)",
-    )
-    p.add_argument(
         "--max",
         type=int,
         default=None,
@@ -126,17 +107,7 @@ def main() -> None:
     )
     args = p.parse_args()
 
-    if args.to_kafka and args.api_to_kafka:
-        print(
-            "Attention : --to-kafka et --api-to-kafka → chaque message peut être publié **deux fois**.",
-            file=sys.stderr,
-        )
-
-    url = _build_stream_url(
-        args.base_url,
-        fraud_rate=args.fraud_rate,
-        to_kafka=args.api_to_kafka,
-    )
+    url = _build_stream_url(args.base_url, fraud_rate=args.fraud_rate)
     print(f"Connexion : {url}", file=sys.stderr)
 
     kafka_topic = args.topic or TOPIC

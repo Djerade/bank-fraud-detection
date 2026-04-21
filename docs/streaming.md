@@ -5,7 +5,7 @@ Simulation de transactions (jeu **FraudShield**, CSV de référence sous `docs/F
 | Élément | Rôle |
 |--------|------|
 | `Config/config.py` | Brokers (`KAFKA_BOOTSTRAP_SERVERS`), **topic unique** (`KAFKA_TOPIC` → `TOPIC`). |
-| `simulateur/` | CLI `python -m simulateur.transaction_simulator`, **API FastAPI** (`app.py`), génération JSON et envoi Kafka. |
+| `simulateur/` | CLI `python -m simulateur.transaction_simulator` (envoi Kafka avec `--kafka`), **API FastAPI** (`app.py`) : génération JSON / NDJSON **sans** Kafka. |
 | `kafka-cluster/produceur.py` | Producteur minimal de démo (JSON). |
 | `kafka-cluster/consumer.py` | Consommateur minimal (affichage des messages). |
 | `kafka-cluster/connecteur_api.py` | Lit le flux NDJSON de `GET /transaction_continuous` ; **`--to-kafka`** publie chaque ligne sur le topic (pont API → Kafka). |
@@ -16,7 +16,7 @@ Un seul topic Kafka est utilisé par défaut (`KAFKA_TOPIC`, défaut `bank.trans
 
 ## API simulateur (FastAPI)
 
-Dossier : `simulateur/` (`app.py`, `schemas.py`, `transaction_simulator.py`, `Dockerfile`). La config Kafka vient de **`Config.config`** (package `Config/` à la racine).
+Dossier : `simulateur/` (`app.py`, `schemas.py`, `transaction_simulator.py`, `Dockerfile`). Pour le **CLI** avec `--kafka`, la config brokers/topic vient de **`Config.config`** (package `Config/` à la racine).
 
 **Docker** (recommandé) : `docker compose up -d --build` — Swagger : [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
@@ -32,9 +32,9 @@ PYTHONPATH=. uvicorn simulateur.app:app --reload --host 127.0.0.1 --port 8000
 | GET | `/health` | Santé du service |
 | GET | `/transaction` | Une transaction (query : `fraud_rate`, `seed`) |
 | POST | `/transactions` | Corps JSON : `count`, `fraud_rate`, `seed` → liste de transactions |
-| GET | `/transaction_continuous` | Flux NDJSON (5–7 tx/s) ; avec `to_kafka=true`, chaque transaction est aussi publiée sur Kafka (`topic` query optionnel, défaut = `Config.TOPIC`) |
+| GET | `/transaction_continuous` | Flux NDJSON (5–7 tx/s), query `fraud_rate` uniquement |
 
-Les variables `KAFKA_BOOTSTRAP_SERVERS` et `KAFKA_TOPIC` s’appliquent à l’API et aux scripts sous `kafka-cluster/` (via `Config.config`).
+Les variables `KAFKA_BOOTSTRAP_SERVERS` et `KAFKA_TOPIC` s’appliquent au CLI simulateur (`--kafka`), au connecteur `--to-kafka` et aux autres scripts sous `kafka-cluster/` (via `Config.config`).
 
 ---
 
@@ -123,8 +123,6 @@ python kafka-cluster/connecteur_api.py --max 10
 python kafka-cluster/connecteur_api.py --out-jsonl recu.jsonl
 python kafka-cluster/connecteur_api.py --to-kafka --max 50
 docker compose exec simulateur-api bash -lc "cd /app/kafka-cluster && python connecteur_api.py --to-kafka --max 30 --base-url http://127.0.0.1:8000"
-# Variante : l’API publie aussi sur Kafka (risque de doublons avec --to-kafka) :
-python kafka-cluster/connecteur_api.py --api-to-kafka --max 5
 ```
 
 Les scripts sous `kafka-cluster/` fonctionnent aussi **sans** `PYTHONPATH` grâce à `_repo_root.py`.
