@@ -56,7 +56,7 @@ def main() -> None:
         value_deserializer=lambda b: json.loads(b.decode("utf-8")),
         key_deserializer=lambda b: b.decode("utf-8") if b is not None else None,
         group_id=_env("KAFKA_GROUP_ID", "fraud-scorer"),
-        auto_offset_reset="latest",
+        auto_offset_reset="earliest",
         enable_auto_commit=True,
     )
 

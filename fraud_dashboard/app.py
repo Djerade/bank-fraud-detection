@@ -286,46 +286,6 @@ def poll_fragment() -> None:
         int(st.session_state.get("dash_demo_n", 4)),
     )
 
-
-def main() -> None:
-    st.set_page_config(
-        page_title="FraudShield — Surveillance",
-        page_icon="🛡️",
-        layout="wide",
-        initial_sidebar_state="expanded",
-    )
-    inject_style()
-    _defaults()
-
-    st.markdown('<p class="main-header">FraudShield Analytics</p>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="sub-header">Flux temps réel · topic Kafka scoré · speed path (Lambda)</p>',
-        unsafe_allow_html=True,
-    )
-
-    with st.sidebar:
-        st.markdown("### Connexion")
-        st.toggle("Mode démo (sans Kafka)", key="dash_demo")
-        st.text_input("Bootstrap Kafka", key="dash_bootstrap")
-        st.text_input("Topic scoré", key="dash_topic")
-        st.text_input("Groupe consommateur", key="dash_group")
-        st.slider("Transactions démo / cycle", 1, 12, key="dash_demo_n")
-        st.caption(
-            f"Rafraîchissement données : {FRAGMENT_INTERVAL_S:.0f} s. "
-            "Démarrez **simulateur-api**, **fraud-scorer**, puis ce service."
-        )
-        if st.button("Vider le tampon"):
-            st.session_state["rows"].clear()
-            st.session_state["kafka_error"] = None
-            st.rerun()
-        if st.button("Réinitialiser le compteur temps réel"):
-            st.session_state["total_ingested"] = 0
-            st.session_state["last_poll_added"] = 0
-            st.session_state["last_poll_ts"] = None
-            st.rerun()
-
-    poll_fragment()
-
     err = st.session_state.get("kafka_error")
     if err and not st.session_state.get("dash_demo"):
         st.warning(f"Kafka : {err}")
@@ -367,7 +327,7 @@ def main() -> None:
         help="Nombre de lignes actuellement conservées pour les graphiques (les plus anciennes peuvent être évincées).",
     )
     c2.metric("Alertes (prédiction)", f"{frauds:,}".replace(",", " "))
-    c3.metric("Taux d’alerte", f"{rate:.2f} %")
+    c3.metric("Taux d'alerte", f"{rate:.2f} %")
     c4.metric("Score moyen (alertes)", f"{avg_score:.3f}")
 
     g1, g2 = st.columns([1.15, 0.85])
@@ -414,6 +374,46 @@ def main() -> None:
         mime="text/csv",
         disabled=df.empty,
     )
+
+
+def main() -> None:
+    st.set_page_config(
+        page_title="FraudShield — Surveillance",
+        page_icon="🛡️",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+    inject_style()
+    _defaults()
+
+    st.markdown('<p class="main-header">FraudShield Analytics</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="sub-header">Flux temps réel · topic Kafka scoré · speed path (Lambda)</p>',
+        unsafe_allow_html=True,
+    )
+
+    with st.sidebar:
+        st.markdown("### Connexion")
+        st.toggle("Mode démo (sans Kafka)", key="dash_demo")
+        st.text_input("Bootstrap Kafka", key="dash_bootstrap")
+        st.text_input("Topic scoré", key="dash_topic")
+        st.text_input("Groupe consommateur", key="dash_group")
+        st.slider("Transactions démo / cycle", 1, 12, key="dash_demo_n")
+        st.caption(
+            f"Rafraîchissement données : {FRAGMENT_INTERVAL_S:.0f} s. "
+            "Démarrez **simulateur-api**, **fraud-scorer**, puis ce service."
+        )
+        if st.button("Vider le tampon"):
+            st.session_state["rows"].clear()
+            st.session_state["kafka_error"] = None
+            st.rerun()
+        if st.button("Réinitialiser le compteur temps réel"):
+            st.session_state["total_ingested"] = 0
+            st.session_state["last_poll_added"] = 0
+            st.session_state["last_poll_ts"] = None
+            st.rerun()
+
+    poll_fragment()
 
 
 if __name__ == "__main__":

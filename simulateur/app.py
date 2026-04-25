@@ -54,7 +54,7 @@ async def _transaction_continuous_bytes(fraud_rate: float) -> AsyncIterator[byte
     """Chaque seconde : entre 5 et 7 transactions en NDJSON."""
     rng = random.Random()
     while True:
-        n = random.randint(5, 7)
+        n = random.randint(5, 13)
         for _ in range(n):
             row = generate_transaction(rng, fraud_rate=fraud_rate)
             yield (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
@@ -63,7 +63,7 @@ async def _transaction_continuous_bytes(fraud_rate: float) -> AsyncIterator[byte
 
 @app.get("/transaction_continuous")
 async def transaction_continuous(
-    fraud_rate: float = Query(default=0.02, ge=0.0, le=1.0),
+    fraud_rate: float = Query(default=0.002, ge=0.0, le=1.0),
 ) -> StreamingResponse:
     """
     Flux NDJSON infini : par période d’environ 1 s, envoie 5 à 7 transactions.

@@ -135,6 +135,30 @@ services:
     networks:
       - bank-fraud-detection-network
 
+  connecteur:
+    image: bank-fraud-detection-simulateur:latest
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: bank.transactions.raw
+      SIMULATEUR_API_BASE: http://simulateur-api:8000
+    volumes:
+      - ./kafka-cluster:/app/kafka-cluster
+      - ./Config:/app/Config
+    command:
+      - python
+      - /app/kafka-cluster/connecteur_api.py
+      - --to-kafka
+      - --base-url
+      - http://simulateur-api:8000
+    depends_on:
+      kafka:
+        condition: service_healthy
+      simulateur-api:
+        condition: service_started
+    networks:
+      - bank-fraud-detection-network
+
   # Consomme le topic brut en parallèle du Spark ; écrit les prédictions sur un topic dédié.
   fraud-scorer:
     build:
