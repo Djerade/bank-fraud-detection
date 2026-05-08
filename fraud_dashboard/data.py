@@ -21,16 +21,16 @@ def make_consumer(
         group_id=group_id,
         value_deserializer=lambda b: json.loads(b.decode("utf-8")),
         key_deserializer=lambda b: b.decode("utf-8") if b is not None else None,
-        auto_offset_reset="latest",
+        auto_offset_reset="earliest",
         enable_auto_commit=True,
-        consumer_timeout_ms=200,
+        consumer_timeout_ms=500,
+        max_poll_records=1000,
     )
 
 
-def poll_records(consumer: KafkaConsumer, max_messages: int = 256) -> list[dict[str, Any]]:
-    """Récupère jusqu’à ``max_messages`` enregistrements (poll non bloquant)."""
+def poll_records(consumer: KafkaConsumer, max_messages: int = 1000) -> list[dict[str, Any]]:
+    """Récupère jusqu'à ``max_messages`` enregistrements (poll non bloquant)."""
     out: list[dict[str, Any]] = []
-    # kafka-python : poll retourne un dict TopicPartition -> [ConsumerRecord]
     raw = consumer.poll(timeout_ms=600)
     if not raw:
         return out
@@ -47,10 +47,12 @@ def poll_records(consumer: KafkaConsumer, max_messages: int = 256) -> list[dict[
 
 
 def demo_batch(n: int, rng: random.Random | None = None) -> list[dict[str, Any]]:
-    """Quelques lignes factices alignées sur le simulateur + champs ML."""
+    """Lignes factices alignées sur le simulateur + champs ML."""
     r = rng or random.Random()
     types = ("POS", "ATM", "Online")
     merchants = ("ATM", "Electronics", "Grocery", "Fuel")
+    locations = ("Singapore", "Lahore", "London", "Karachi", "Islamabad", "Bangkok", "Multan", "Faisalabad")
+    cards = ("Credit", "Debit")
     now = time.time()
     rows: list[dict[str, Any]] = []
     for i in range(n):
@@ -63,9 +65,14 @@ def demo_batch(n: int, rng: random.Random | None = None) -> list[dict[str, Any]]
                 "transaction_amount_million": round(r.uniform(0.5, 12.0), 2),
                 "transaction_type": r.choice(types),
                 "merchant_category": r.choice(merchants),
+                "transaction_location": r.choice(locations),
+                "card_type": r.choice(cards),
+                "is_international_transaction": r.choice(("Yes", "No")),
+                "failed_transaction_count": float(r.randint(0, 5)),
+                "previous_fraud_count": float(r.randint(0, 4)),
                 "fraud_predicted": 1 if fraud else 0,
                 "fraud_score": round(score, 4),
-                "_ingested_at": now - r.uniform(0, 120),
+                "_ingested_at": now - r.uniform(0, 300),
                 "_demo": True,
             }
         )

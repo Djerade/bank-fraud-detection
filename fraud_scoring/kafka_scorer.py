@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import joblib
@@ -88,6 +89,7 @@ def main() -> None:
                     **row,
                     "fraud_predicted": int(pred),
                     "fraud_score": proba,
+                    "_scored_at": time.time(),
                 }
                 key = row.get("transaction_id")
                 future = producer.send(topic_out, value=out, key=key)

@@ -115,6 +115,7 @@ services:
       - ./simulateur:/app/simulateur
       - ./Config:/app/Config
       - ./kafka-cluster:/app/kafka-cluster
+      - ./scripts:/app/scripts
     command:
       - uvicorn
       - simulateur.app:app
