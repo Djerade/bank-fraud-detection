@@ -1,1 +1,1 @@
-"""Tableau de bord Streamlit pour le flux ``bank.transactions.scored``."""
+"""Dashboard Next.js (``next-dashboard``) branché sur Kafka ``bank.transactions.scored`` ; Streamlit optionnel."""

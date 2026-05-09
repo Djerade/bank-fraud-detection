@@ -19,7 +19,7 @@
 #   - ZooKeeper : localhost:2181
 #   - Kafka UI : http://127.0.0.1:8080
 #   - API : http://127.0.0.1:8000/docs
-#   - Dashboard fraude : http://127.0.0.1:8501
+#   - Dashboard fraude (Next.js) : http://127.0.0.1:3000
 #
 # Réseau interne (services Compose) : kafka:29092
 #
@@ -183,15 +183,16 @@ services:
   fraud-dashboard:
     build:
       context: .
-      dockerfile: fraud_dashboard/Dockerfile
+      dockerfile: fraud_dashboard/next-dashboard/Dockerfile
     image: bank-fraud-detection-fraud-dashboard:latest
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8501:8501"
+      - "127.0.0.1:3000:3000"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC_SCORED: bank.transactions.scored
-      DASHBOARD_KAFKA_GROUP: fraud-dashboard-ui
+      DASHBOARD_KAFKA_GROUP: fraud-next-dashboard
+      KAFKA_AUTO_OFFSET_RESET: earliest
     depends_on:
       kafka:
         condition: service_healthy

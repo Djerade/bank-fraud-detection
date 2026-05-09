@@ -11,3 +11,5 @@ __pycache__
 data
 notebooks
 docs
+**/node_modules
+**/.next

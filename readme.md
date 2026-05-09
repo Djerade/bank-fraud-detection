@@ -88,7 +88,7 @@ Le dépôt est conçu pour être utilisé **via Docker** ; un venv local reste u
    docker compose up -d --build
    ```
 
-   - Depuis l’hôte : Kafka `localhost:9092`, ZooKeeper `localhost:2181`, **Kafka UI** [http://127.0.0.1:8080](http://127.0.0.1:8080), **API** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+   - Depuis l’hôte : Kafka `localhost:9092`, ZooKeeper `localhost:2181`, **Kafka UI** [http://127.0.0.1:8080](http://127.0.0.1:8080), **API** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs), **dashboard fraude (Next.js)** [http://127.0.0.1:3000](http://127.0.0.1:3000).
    - Le premier build de l’image API peut être long.
 
    Sans reconstruire l’API :  
