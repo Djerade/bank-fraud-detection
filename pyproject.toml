@@ -37,7 +37,17 @@ dashboard = [
 docs = [
     "python-docx==1.1.2",
 ]
+ml = [
+    "mlflow==2.19.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["simulateur*", "Config*", "spark_lambda*", "fraud_scoring*", "fraud_dashboard*"]
+include = [
+    "simulateur*",
+    "Config*",
+    "spark_lambda*",
+    "fraud_scoring*",
+    "fraud_dashboard*",
+    "fraud_detection*",
+]

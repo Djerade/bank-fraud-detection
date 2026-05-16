@@ -26,7 +26,9 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 | `spark/Dockerfile` | Image Spark 3.5 + connecteur Kafka pour les services Compose `spark-speed` / `spark-batch`. |
 | `docs/streaming.md` | Détail du streaming Kafka, variables d’environnement, commandes. |
 | `docs/spark-lambda.md` | Démarrage des deux couches Spark, profil `batch`, variables. |
-| `docker-compose.yml` | ZooKeeper, Kafka, Kafka UI, **simulateur-api**, **spark-speed**, **spark-batch** (profil `batch`). |
+| `docker-compose.yml` | Stack complète : Kafka, API, **mlflow**, **ml-train-init**, scoring, dashboard, Spark. |
+| `fraud_detection/` | Entraînement sklearn + MLflow (exécuté dans le conteneur `ml-train-init`). |
+| `docs/mlflow.md` | MLflow et entraînement **uniquement via Docker**. |
 | `pyproject.toml` | Métadonnée du projet et liste des dépendances (pins). |
 | `requirements.txt` | Installe le package en éditable + dépendances cœur. |
 | `requirements-notebooks.txt` | Même chose + extra `[notebooks]` (JupyterLab, visualisation). |
@@ -88,7 +90,7 @@ Le dépôt est conçu pour être utilisé **via Docker** ; un venv local reste u
    docker compose up -d --build
    ```
 
-   - Depuis l’hôte : Kafka `localhost:9092`, ZooKeeper `localhost:2181`, **Kafka UI** [http://127.0.0.1:8080](http://127.0.0.1:8080), **API** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs), **dashboard fraude (Next.js)** [http://127.0.0.1:3000](http://127.0.0.1:3000).
+   - Depuis l’hôte : Kafka `localhost:9092`, ZooKeeper `localhost:2181`, **Kafka UI** [http://127.0.0.1:8080](http://127.0.0.1:8080), **API** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs), **dashboard fraude (Next.js)** [http://127.0.0.1:3000](http://127.0.0.1:3000), **MLflow** [http://127.0.0.1:5000](http://127.0.0.1:5000).
    - Le premier build de l’image API peut être long.
 
    Sans reconstruire l’API :  
@@ -128,6 +130,8 @@ Le dépôt est conçu pour être utilisé **via Docker** ; un venv local reste u
 
    Détail : **[docs/spark-lambda.md](docs/spark-lambda.md)** (premier lancement Spark : téléchargement du connecteur Kafka, quelques minutes possible).
 
+6. **MLflow** — démarré avec la stack ; entraîne automatiquement si `models/fraud_classifier.joblib` est absent (`ml-train-init`). Ré-entraînement : `./scripts/ml-train.sh`. Guide : **[docs/mlflow.md](docs/mlflow.md)**.
+
 Détails, variables d’environnement et format JSON : **[docs/streaming.md](docs/streaming.md)**. Un seul topic Kafka est défini par `KAFKA_TOPIC` (défaut `bank.transactions.raw`).
 
 ---
@@ -156,8 +160,10 @@ bank-fraud-detection/
 │   ├── streaming.md            # Guide Kafka détaillé
 │   ├── spark-lambda.md         # Deux couches Spark (Compose)
 │   └── FraudShield_Banking_Data.csv  # Données de référence (exemple)
+├── fraud_detection/            # Entraînement + MLflow (train.py, Dockerfile profil train)
 ├── notebooks/                  # Analyses (Jupyter)
-├── docker-compose.yml          # Kafka stack + simulateur-api + spark-speed + spark-batch
+├── models/                     # fraud_classifier.joblib (scoring Kafka)
+├── docker-compose.yml          # Kafka stack + simulateur-api + mlflow + spark + dashboard
 ├── pyproject.toml
 ├── requirements.txt
 ├── requirements-notebooks.txt

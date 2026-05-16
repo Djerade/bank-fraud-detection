@@ -4,6 +4,8 @@
 # lancer Compose et à ouvrir les URLs / curl sur les ports publiés.
 #
 # Démarrage (racine du dépôt) : docker compose up -d --build
+# MLflow + entraînement initial (si models/fraud_classifier.joblib absent) : ml-train-init
+# Ré-entraînement manuel : ./scripts/ml-train.sh
 #
 # L’API tourne avec uvicorn --reload et des volumes sur simulateur/, Config/ et
 # kafka-cluster/ : une sauvegarde dans ces dossiers est reflétée dans le conteneur
@@ -20,6 +22,7 @@
 #   - Kafka UI : http://127.0.0.1:8080
 #   - API : http://127.0.0.1:8000/docs
 #   - Dashboard fraude (Next.js) : http://127.0.0.1:3000
+#   - MLflow UI : http://127.0.0.1:5000
 #
 # Réseau interne (services Compose) : kafka:29092
 #
@@ -177,6 +180,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      ml-train-init:
+        condition: service_completed_successfully
     networks:
       - bank-fraud-detection-network
 
@@ -189,10 +194,25 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC_SCORED: bank.transactions.scored
       DASHBOARD_KAFKA_GROUP: fraud-next-dashboard
       KAFKA_AUTO_OFFSET_RESET: earliest
+    volumes:
+      - ./fraud_dashboard/next-dashboard:/app
+      - next-dashboard-node-modules:/app/node_modules
+    command:
+      - npm
+      - run
+      - dev
+      - --
+      - --hostname
+      - "0.0.0.0"
+      - --port
+      - "3000"
     depends_on:
       kafka:
         condition: service_healthy
@@ -227,6 +247,42 @@ services:
       - --master
       - local[*]
       - /opt/spark/work-dir/spark_lambda/speed_layer.py
+
+  # Suivi d’expériences (voir docs/mlflow.md) — UI http://127.0.0.1:5000
+  mlflow:
+    build:
+      context: .
+      dockerfile: mlflow/Dockerfile
+    image: bank-fraud-detection-mlflow:latest
+    hostname: mlflow
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    networks:
+      - bank-fraud-detection-network
+
+  # Au premier `docker compose up` : entraîne si le joblib est absent, puis quitte.
+  ml-train-init:
+    build:
+      context: .
+      dockerfile: fraud_detection/Dockerfile
+    image: bank-fraud-detection-ml-train:latest
+    restart: "no"
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT_NAME: bank-fraud-detection
+      FRAUD_MODEL_PATH: /app/models/fraud_classifier.joblib
+    volumes:
+      - ./data:/app/data:ro
+      - ./models:/app/models
+    entrypoint: ["/app/fraud_detection/entrypoint-train-init.sh"]
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    networks:
+      - bank-fraud-detection-network
 
   # Job batch ponctuel : docker compose --profile batch run --rm spark-batch
   spark-batch:
@@ -265,5 +321,7 @@ volumes:
   zookeeper-data:
   zookeeper-log:
   kafka-data:
+  mlflow-data:
   spark-lake:
   spark-checkpoint-speed:
+  next-dashboard-node-modules:
