@@ -6,6 +6,8 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import (
     ExtraTreesClassifier,
@@ -87,8 +89,9 @@ def build_preprocessor(X_train: pd.DataFrame) -> ColumnTransformer:
 def classifiers(random_state: int = RANDOM_STATE) -> dict[str, Any]:
     rs = random_state
     return {
+        # Meilleur modèle issu du tuning notebook (C=0.01, GridSearchCV)
         "LogisticRegression": LogisticRegression(
-            max_iter=2000, class_weight="balanced", solver="lbfgs", random_state=rs
+            C=0.01, max_iter=2000, class_weight="balanced", solver="lbfgs", random_state=rs
         ),
         "SGDClassifier (log_loss)": SGDClassifier(
             loss="log_loss",
@@ -132,7 +135,7 @@ def fit_and_metrics(
     warnings.filterwarnings("ignore", category=UserWarning)
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    pipe = Pipeline([("prep", preprocessor), ("clf", clf)])
+    pipe = ImbPipeline([("prep", preprocessor), ("smote", SMOTE(random_state=42)), ("clf", clf)])
     row: dict[str, float | str] = {
         "model": name,
         "accuracy": float("nan"),

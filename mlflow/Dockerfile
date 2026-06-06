@@ -9,4 +9,6 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=12 --start-period=20s \
 EXPOSE 5000
 VOLUME ["/mlflow"]
 
-CMD ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "sqlite:////mlflow/db/mlflow.db", "--default-artifact-root", "/mlflow/artifacts", "--serve-artifacts"]
+# Un seul worker Gunicorn : moins de timeouts / OOM sur Docker Desktop avec peu de RAM.
+ENV MLFLOW_SERVER_WORKERS=1
+CMD ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "sqlite:////mlflow/db/mlflow.db", "--default-artifact-root", "/mlflow/artifacts", "--serve-artifacts", "--workers", "1"]

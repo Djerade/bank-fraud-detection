@@ -22,7 +22,12 @@ from kafka import KafkaConsumer, KafkaProducer
 
 from Config.config import BOOTSTRAP_SERVERS, TOPIC, TOPIC_SCORED
 
-from fraud_scoring.features import build_model_input, enrich_features, json_dict_to_training_dataframe
+from fraud_scoring.features import (
+    build_model_input,
+    enrich_features,
+    json_dict_to_training_dataframe,
+    load_global_stats,
+)
 
 
 def _env(name: str, default: str) -> str:
@@ -46,6 +51,12 @@ def main() -> None:
 
     pipeline = joblib.load(model_path)
     print(f"[fraud-scorer] Modèle chargé : {model_path.resolve()}", file=sys.stderr)
+
+    # Charger les stats globales pour les features comportementales
+    stats_path = model_path.parent / "global_stats.json"
+    load_global_stats(stats_path)
+    if stats_path.is_file():
+        print(f"[fraud-scorer] Stats globales chargées : {stats_path}", file=sys.stderr)
     print(
         f"[fraud-scorer] {bootstrap!r} consume {topic_in!r} → produce {topic_out!r}",
         file=sys.stderr,

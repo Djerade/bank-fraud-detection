@@ -8,6 +8,7 @@ Entraîne la shortlist de classificateurs et journalise dans MLflow (Docker uniq
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 
@@ -115,6 +116,20 @@ def run_training(args: argparse.Namespace) -> None:
         out_path = out_dir / args.output_name
         joblib.dump(best_pipe, out_path)
         mlflow.log_artifact(str(out_path), artifact_path="joblib_export")
+
+        # Stats globales pour les features comportementales (amt_z_score, amt_is_outlier)
+        amt_col = "Transaction_Amount (in Million)"
+        if amt_col in X_train.columns:
+            stats = {
+                "amt_mean": float(X_train[amt_col].mean()),
+                "amt_std":  float(X_train[amt_col].std()),
+                "amt_q25":  float(X_train[amt_col].quantile(0.25)),
+                "amt_q75":  float(X_train[amt_col].quantile(0.75)),
+            }
+            stats_path = out_dir / "global_stats.json"
+            stats_path.write_text(json.dumps(stats, indent=2))
+            mlflow.log_artifact(str(stats_path), artifact_path="joblib_export")
+            print(f"  global_stats → {stats_path.resolve()}")
 
         print(f"Meilleur modèle : {best_name}")
         print(f"  ROC-AUC={best_row['roc_auc']:.4f}  F1={best_row['f1']:.4f}")

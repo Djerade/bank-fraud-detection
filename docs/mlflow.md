@@ -18,11 +18,35 @@ docker compose up -d --build
 
 Ordre typique :
 
-1. `mlflow` devient healthy  
-2. `ml-train-init` entraîne (ou saute si le modèle existe déjà)  
-3. `fraud-scorer` et le reste de la stack démarrent  
+1. ZooKeeper → **Kafka** (healthy) → `mlflow` (healthy)  
+2. **`ml-train-init`** entraîne (ou saute si modèle **et** runs MLflow déjà présents)  
+3. Kafka healthy → `fraud-scorer`, connecteur, Spark, etc.  
 
-UI MLflow : **http://127.0.0.1:5000** — expérience `bank-fraud-detection`.
+### Kafka `unhealthy`
+
+Causes fréquentes :
+
+1. **Premier démarrage lent** (Docker Desktop) — attendre 2–3 min puis `docker compose up -d`.
+2. **Volume Kafka corrompu** (ex. ancien cluster 3 brokers) — réinitialiser :
+
+   ```bash
+   ./scripts/reset-kafka.sh
+   docker compose up -d --build
+   ```
+
+3. **Entraînement ML en parallèle du boot Kafka** — corrigé : `ml-train-init` attend maintenant Kafka **healthy** avant de tourner.
+
+UI MLflow : **http://127.0.0.1:5000** — ouvrir l’expérience **`bank-fraud-detection`** (pas seulement « Default »).
+
+### UI vide
+
+Souvent : `models/fraud_classifier.joblib` existait **avant** MLflow, donc le premier démarrage n’a rien journalisé.
+
+```bash
+./scripts/ml-train.sh
+```
+
+Puis rafraîchir l’UI → **Experiments** → **bank-fraud-detection**. Tu dois voir un run parent `fraud-shortlist` et des runs imbriqués par algorithme.
 
 ## Ré-entraînement manuel (conteneur)
 

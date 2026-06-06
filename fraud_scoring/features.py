@@ -4,8 +4,15 @@ Alignement des messages Kafka (JSON simulateur, snake_case) sur le format d’en
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+
+# Stats globales d’entraînement pour les features comportementales.
+# Chargées depuis global_stats.json au démarrage du scorer si disponibles.
+_GLOBAL_STATS: dict = {}
 
 # snake_case (simulateur / Kafka) → noms colonnes du CSV / notebook
 JSON_TO_TRAINING_COLS: dict[str, str] = {
@@ -54,6 +61,14 @@ DROP_FOR_MODEL = {
 }
 
 
+def load_global_stats(stats_path: str | Path) -> None:
+    """Charge les stats d'entraînement depuis un JSON pour les features comportementales."""
+    global _GLOBAL_STATS
+    p = Path(stats_path)
+    if p.is_file():
+        _GLOBAL_STATS = json.loads(p.read_text())
+
+
 def _yes_no_int(x) -> float:
     if pd.isna(x):
         return np.nan
@@ -62,6 +77,17 @@ def _yes_no_int(x) -> float:
         return 1.0
     if s in ("no", "n", "false", "0"):
         return 0.0
+    return np.nan
+
+
+def _card_type_int(x) -> float:
+    if pd.isna(x):
+        return np.nan
+    s = str(x).strip().casefold()
+    if s == "debit":
+        return 0.0
+    if s == "credit":
+        return 1.0
     return np.nan
 
 
@@ -113,11 +139,38 @@ def enrich_features(df: pd.DataFrame) -> pd.DataFrame:
     df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7.0)
 
     for col in ["Is_International_Transaction", "Is_New_Merchant", "Unusual_Time_Transaction"]:
-        df[f"{col}_num"] = df[col].map(_yes_no_int).astype(float)
+        df[col] = df[col].map(_yes_no_int).astype(float)
+
+    df["Card_Type"] = df["Card_Type"].map(_card_type_int).astype(float)
+
+    for col in ["Card_Type", "Is_International_Transaction", "Is_New_Merchant", "Unusual_Time_Transaction"]:
+        legacy = f"{col}_num"
+        if legacy in df.columns:
+            df.drop(columns=legacy, inplace=True)
 
     df["log_transaction_amount"] = np.log1p(df[AMT].clip(lower=0))
     df["amount_vs_avg_ratio"] = df[AMT] / (df[AVG_AMT].abs() + EPS)
     df["amount_vs_max24_ratio"] = df[AMT] / (df[MAX24].abs() + EPS)
+
+    # Features comportementales (stats calculées à l'entraînement, chargées via load_global_stats)
+    amt = df[AMT]
+    if _GLOBAL_STATS:
+        _mean = _GLOBAL_STATS["amt_mean"]
+        _std  = _GLOBAL_STATS["amt_std"]
+        _q25  = _GLOBAL_STATS["amt_q25"]
+        _q75  = _GLOBAL_STATS["amt_q75"]
+    else:
+        # Fallback : stats calculées sur le batch courant (entraînement)
+        _mean = float(amt.mean())
+        _std  = float(amt.std())
+        _q25  = float(amt.quantile(0.25))
+        _q75  = float(amt.quantile(0.75))
+
+    iqr = _q75 - _q25
+    df["amt_z_score"]    = (amt - _mean) / (_std + EPS)
+    df["amt_is_outlier"] = (
+        (amt < _q25 - 1.5 * iqr) | (amt > _q75 + 1.5 * iqr)
+    ).astype(int)
 
     return df
 

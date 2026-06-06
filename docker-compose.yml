@@ -74,16 +74,23 @@ services:
       KAFKA_MIN_INSYNC_REPLICAS: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Docker Desktop : évite OOM / redémarrages en boucle sur petites machines
+      KAFKA_HEAP_OPTS: "-Xmx768m -Xms512m"
     volumes:
       - kafka-data:/var/lib/kafka/data
     networks:
       - bank-fraud-detection-network
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      # Port ouvert puis topic list (timeout pour ne pas bloquer le healthcheck).
+      test:
+        - CMD-SHELL
+        - |
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/29092' &&
+          timeout 20 kafka-topics --bootstrap-server localhost:29092 --list >/dev/null 2>&1
       interval: 15s
-      timeout: 10s
-      retries: 8
-      start_period: 90s
+      timeout: 25s
+      retries: 20
+      start_period: 180s
 
   kafka-ui:
     # Image Docker Hub officielle : provectuslabs/kafka-ui (pas « provectus/kafka-ui »).
