@@ -5,7 +5,7 @@ Dashboard temps réel en Next.js pour la surveillance fraude. En **Docker Compos
 ## Lancer en local
 
 ```bash
-cd fraud_dashboard/next-dashboard
+cd fraud_dashboard
 npm install
 npm run dev
 ```
@@ -34,7 +34,7 @@ Variables utiles (alignées sur `Config/` et le service Compose) :
 - Design dashboard professionnel (cartes KPI + graphiques + tables).
 - Route serveur `GET /api/dashboard` (agrégations dans `lib/snapshot.ts`).
 - Mise à jour automatique toutes les 2 secondes côté client.
-- Image Docker : `fraud_dashboard/next-dashboard/Dockerfile` (contexte de build = racine du dépôt).
+- Image Docker : `fraud_dashboard/Dockerfile` (contexte de build = racine du dépôt).
 
 ## Évolutions possibles
 

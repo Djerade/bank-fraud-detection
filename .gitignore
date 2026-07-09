@@ -11,11 +11,11 @@ build/
 env/
 .venv/
 
-# Next.js — fraud_dashboard/next-dashboard
-fraud_dashboard/next-dashboard/.next/
-fraud_dashboard/next-dashboard/node_modules/
-fraud_dashboard/next-dashboard/out/
-fraud_dashboard/next-dashboard/.eslintcache
+# Next.js — fraud_dashboard
+fraud_dashboard/.next/
+fraud_dashboard/node_modules/
+fraud_dashboard/out/
+fraud_dashboard/.eslintcache
 
 # MLflow (runs locaux hors Docker)
 mlruns/

@@ -7,7 +7,7 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 ## Objectifs
 
 - Ingérer des transactions (jeu **FraudShield** ou futur flux temps réel) vers **Kafka**.
-- Analyser et préparer les données (notebooks, `pandas`, `scikit-learn`, `XGBoost`, etc.).
+- Analyser et préparer les données (notebooks, `pandas`, `scikit-learn`, `imbalanced-learn`, etc.).
 - Entraîner et servir un modèle de scoring (pickle / API REST prévue dans les dépendances).
 - Architecture évolutive : producteur → Kafka → consommateur / service de détection (à étendre).
 
@@ -47,7 +47,7 @@ Ce dépôt illustre la mise en œuvre d’une chaîne **Big Data** orientée **f
 
 ## Technologies
 
-- **Python** : `pandas`, `numpy`, `scikit-learn`, `imbalanced-learn`, `xgboost`
+- **Python** : `pandas`, `numpy`, `scikit-learn`, `imbalanced-learn`
 - **Notebooks** : JupyterLab
 - **Streaming** : Apache Kafka (`kafka-python`), cluster Docker Compose
 - **API** (optionnelle) : FastAPI, Uvicorn, Pydantic

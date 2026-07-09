@@ -195,7 +195,7 @@ services:
   fraud-dashboard:
     build:
       context: .
-      dockerfile: fraud_dashboard/next-dashboard/Dockerfile
+      dockerfile: fraud_dashboard/Dockerfile
     image: bank-fraud-detection-fraud-dashboard:latest
     restart: unless-stopped
     ports:
@@ -209,7 +209,7 @@ services:
       DASHBOARD_KAFKA_GROUP: fraud-next-dashboard
       KAFKA_AUTO_OFFSET_RESET: earliest
     volumes:
-      - ./fraud_dashboard/next-dashboard:/app
+      - ./fraud_dashboard:/app
       - next-dashboard-node-modules:/app/node_modules
     command:
       - npm

@@ -332,7 +332,7 @@ def main() -> None:
     doc.add_page_break()
     _add_file_annex(doc, "spark_lambda/batch_layer.py", "Annexe H — spark_lambda/batch_layer.py")
     doc.add_page_break()
-    _add_file_annex(doc, "fraud_dashboard/app.py", "Annexe I — fraud_dashboard/app.py (extrait)", max_chars=14000)
+    _add_file_annex(doc, "fraud_dashboard/app/page.tsx", "Annexe I — fraud_dashboard/app/page.tsx (extrait)", max_chars=14000)
 
     doc.add_page_break()
     doc.add_heading("Annexe J — Tableau des services Docker et ports", level=2)

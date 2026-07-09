@@ -16,7 +16,7 @@ Pipeline Big Data pour la détection de fraude financière en temps réel sur tr
 - **ML :** scikit-learn (RandomForest, XGBoost-like, Logistic Regression…) entraîné via `fraud_detection/train.py`, tracé avec MLflow
 - **Scoring temps réel :** `fraud_scoring/kafka_scorer.py` — consomme le topic brut, score avec le joblib, publie sur `bank.transactions.scored`
 - **Architecture Lambda :** Spark speed layer (streaming bronze) + batch layer (agrégats gold) — `spark_lambda/`
-- **Dashboard :** Next.js (`fraud_dashboard/next-dashboard/`) → port 3000
+- **Dashboard :** Next.js (`fraud_dashboard/`) → port 3000
 - **MLflow UI :** port 5000, artefacts dans volume Docker `mlflow-data`
 
 **Ports exposés :**
