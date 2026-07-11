@@ -1,0 +1,23 @@
+{
+  "model": "LogisticRegression",
+  "trained_at": "2026-07-11T01:34:31.051897+00:00",
+  "mlflow_run_id": "aeda3ae92644473780f9361a9e7c33e2",
+  "dataset_rows": 49996,
+  "random_state": 42,
+  "metrics": {
+    "accuracy": 0.5967,
+    "precision": 0.06326932545544067,
+    "recall": 0.5298969072164949,
+    "f1": 0.11304156586760501,
+    "roc_auc": 0.5978029264698713
+  },
+  "quality_gate": {
+    "min_roc_auc": 0.55,
+    "min_f1": 0.0,
+    "passed": true
+  },
+  "requires": [
+    "fraud_classifier.joblib",
+    "global_stats.json"
+  ]
+}

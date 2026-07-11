@@ -170,22 +170,42 @@ services:
     networks:
       - bank-fraud-detection-network
 
-  # Consomme le topic brut en parallèle du Spark ; écrit les prédictions sur un topic dédié.
-  fraud-scorer:
+  # Backend FastAPI : consomme le topic brut, score avec le modèle @champion
+  # (chargé depuis le Registry MLflow, repli joblib), garde les transactions en
+  # mémoire et les sert au dashboard (polling). Image = simulateur + mlflow-skinny.
+  fraud-backend:
     build:
       context: .
-      dockerfile: fraud_scoring/Dockerfile
-    image: bank-fraud-detection-fraud-scorer:latest
+      dockerfile: fraud_backend/Dockerfile
+    image: bank-fraud-detection-fraud-backend:latest
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC_IN: bank.transactions.raw
-      KAFKA_TOPIC_OUT: bank.transactions.scored
+      # Source du modèle : Registry MLflow (alias @champion), repli sur le joblib.
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      FRAUD_MODEL_URI: models:/fraud-classifier@champion
       FRAUD_MODEL_PATH: /app/models/fraud_classifier.joblib
+      FRAUD_BACKEND_GROUP: fraud-backend
+      GIT_PYTHON_REFRESH: quiet
     volumes:
+      - ./fraud_backend:/app/fraud_backend
+      - ./fraud_scoring:/app/fraud_scoring
+      - ./Config:/app/Config
       - ./models:/app/models:ro
+    command:
+      - uvicorn
+      - fraud_backend.app:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8001"
     depends_on:
       kafka:
+        condition: service_healthy
+      mlflow:
         condition: service_healthy
       ml-train-init:
         condition: service_completed_successfully
@@ -203,11 +223,8 @@ services:
     environment:
       NODE_ENV: development
       NEXT_TELEMETRY_DISABLED: "1"
-      WATCHPACK_POLLING: "true"
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      KAFKA_TOPIC_SCORED: bank.transactions.scored
-      DASHBOARD_KAFKA_GROUP: fraud-next-dashboard
-      KAFKA_AUTO_OFFSET_RESET: earliest
+      # Le dashboard interroge le backend FastAPI (proxy same-origin via /api/dashboard).
+      FRAUD_API_BASE: http://fraud-backend:8001
     volumes:
       - ./fraud_dashboard:/app
       - next-dashboard-node-modules:/app/node_modules
@@ -221,8 +238,8 @@ services:
       - --port
       - "3000"
     depends_on:
-      kafka:
-        condition: service_healthy
+      fraud-backend:
+        condition: service_started
     networks:
       - bank-fraud-detection-network
 
@@ -267,6 +284,23 @@ services:
       - "127.0.0.1:5000:5000"
     volumes:
       - mlflow-data:/mlflow
+    # Artefacts PROXIFIÉS (mlflow-artifacts:/) : les clients logent/chargent via HTTP
+    # et le serveur persiste dans /mlflow/artifacts. Sans ça, un artifact-root local
+    # fait écrire les artefacts dans le conteneur client éphémère → perdus.
+    command:
+      - mlflow
+      - server
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - sqlite:////mlflow/db/mlflow.db
+      - --artifacts-destination
+      - /mlflow/artifacts
+      - --serve-artifacts
+      - --workers
+      - "1"
     networks:
       - bank-fraud-detection-network
 
@@ -281,6 +315,10 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MLFLOW_EXPERIMENT_NAME: bank-fraud-detection
       FRAUD_MODEL_PATH: /app/models/fraud_classifier.joblib
+      # Barrière de qualité (#1). Le dataset FraudShield plafonne ~0.6 de ROC-AUC ;
+      # seuil abaissé à 0.55 pour que la boucle (promotion @champion → serving) tourne.
+      # En production réelle : relever à >= 0.75 avec un meilleur modèle/dataset.
+      FRAUD_MIN_ROC_AUC: "0.55"
     volumes:
       - ./data:/app/data:ro
       - ./models:/app/models

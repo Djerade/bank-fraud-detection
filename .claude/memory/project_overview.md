@@ -14,9 +14,11 @@ Pipeline Big Data pour la détection de fraude financière en temps réel sur tr
 - **Ingestion :** Apache Kafka (1 broker + ZooKeeper, topic `bank.transactions.raw`)
 - **Simulateur :** FastAPI (`simulateur/`) + CLI → génère des transactions synthétiques JSON
 - **ML :** scikit-learn (RandomForest, XGBoost-like, Logistic Regression…) entraîné via `fraud_detection/train.py`, tracé avec MLflow
-- **Scoring temps réel :** `fraud_scoring/kafka_scorer.py` — consomme le topic brut, score avec le joblib, publie sur `bank.transactions.scored`
+- **Backend / scoring temps réel :** `fraud_backend/` (FastAPI, port **8001**) — consomme le topic brut via un thread Kafka de fond, score avec le joblib (réutilise `fraud_scoring.features`), garde les transactions scorées dans un tampon mémoire (6000 max) et les sert au dashboard. Endpoints : `GET /api/dashboard` (agrégé), `POST /predict` (à la demande), `GET /health`. Réutilise l'image `bank-fraud-detection-simulateur:latest` (pas de build dédié).
 - **Architecture Lambda :** Spark speed layer (streaming bronze) + batch layer (agrégats gold) — `spark_lambda/`
-- **Dashboard :** Next.js (`fraud_dashboard/`) → port 3000
+- **Dashboard :** Next.js (`fraud_dashboard/`) → port 3000. La route `/api/dashboard` est un simple **proxy** vers `http://fraud-backend:8001` (var `FRAUD_API_BASE`). Le frontend ne parle plus à Kafka.
+
+**Architecture actuelle (depuis juillet 2026) :** `producteur → Kafka raw → fraud-backend (modèle) → dashboard (polling)`. L'ancien service `fraud-scorer` (`fraud_scoring/kafka_scorer.py` → topic `bank.transactions.scored`) et la consommation Kafka côté Next.js ont été **retirés**. `fraud_scoring/kafka_scorer.py` subsiste comme variante Kafka→Kafka mais n'est plus dans le compose (encore référencé par `scripts/generate_rapport_docx.py`).
 - **MLflow UI :** port 5000, artefacts dans volume Docker `mlflow-data`
 
 **Ports exposés :**

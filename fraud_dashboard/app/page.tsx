@@ -3,6 +3,8 @@
 import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DashboardSnapshot } from "@/lib/types";
+import { riskLevel, riskTone } from "@/lib/risk";
+import { WorldMap } from "@/components/world-map";
 import {
   Area,
   AreaChart,
@@ -25,20 +27,6 @@ function pct(value: number, digits = 2): string {
 
 function minuteLabel(v: string): string {
   return new Date(v).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-}
-
-function riskLevel(score: number): "low" | "medium" | "high" | "critical" {
-  if (score >= 0.85) return "critical";
-  if (score >= 0.7) return "high";
-  if (score >= 0.45) return "medium";
-  return "low";
-}
-
-function riskTone(level: ReturnType<typeof riskLevel>): string {
-  if (level === "critical") return "#dc2626";
-  if (level === "high") return "#ea580c";
-  if (level === "medium") return "#ca8a04";
-  return "#16a34a";
 }
 
 type TimeRange = "today" | "week" | "year";
@@ -148,74 +136,6 @@ function RiskGauge({ score, max = 5 }: { score: number; max?: number }) {
 }
 
 const AVATAR_HUES = ["#2563eb", "#7c3aed", "#db2777", "#059669", "#d97706"];
-const GEO_POSITIONS: Record<string, { x: number; y: number }> = {
-  Paris: { x: 53, y: 27 },
-  Lyon: { x: 54, y: 29 },
-  Marseille: { x: 55, y: 31 },
-  Toulouse: { x: 52, y: 31 },
-  Lille: { x: 54, y: 25 },
-  Nantes: { x: 50, y: 29 },
-  Nice: { x: 56, y: 31 },
-  Bordeaux: { x: 49, y: 31 },
-  Rennes: { x: 49, y: 27 },
-  Strasbourg: { x: 56, y: 27 },
-  London: { x: 49, y: 24 },
-  Singapore: { x: 79, y: 58 },
-  Lahore: { x: 67, y: 40 },
-  Karachi: { x: 64, y: 45 },
-  Islamabad: { x: 67, y: 37 },
-  Bangkok: { x: 75, y: 49 },
-  Multan: { x: 66, y: 42 },
-  Faisalabad: { x: 67, y: 41 }
-};
-
-function LocationMap({
-  points,
-  maxAlerts
-}: {
-  points: DashboardSnapshot["byLocation"];
-  maxAlerts: number;
-}) {
-  return (
-    <div className="td-geo-map" aria-label="Carte de répartition géographique">
-      <svg viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet">
-        <rect x="0" y="0" width="1000" height="520" rx="18" fill="#eef6ff" />
-        <path
-          d="M92 210l34-58 62-26 98 18 70 40 27 38-4 30-26 15-58-6-36 14-45-8-48 18-34-11z"
-          className="td-land"
-        />
-        <path
-          d="M366 120l34-20 57 2 40 21 33 10 21 27-15 37-33 21-48-2-31 31-58 3-26-36 6-31 25-12z"
-          className="td-land"
-        />
-        <path
-          d="M430 278l35-26 52-8 30 20 9 34-20 62-29 43-48 22-34-18-17-62 7-40z"
-          className="td-land"
-        />
-        <path
-          d="M548 168l46-22 66 9 42 15 43 2 22 24-21 19-44 8-35 20-21 27-30-8-29-24-12-32z"
-          className="td-land"
-        />
-        <path d="M765 336l54 14 34 32-22 24-46 2-27-24z" className="td-land" />
-        {points.map((loc) => {
-          const pos = GEO_POSITIONS[loc.name];
-          if (!pos) return null;
-          const intensity = Math.max(0.16, loc.alerts / Math.max(1, maxAlerts));
-          const radius = 6 + intensity * 12;
-          return (
-            <g key={loc.name}>
-              <circle cx={pos.x * 10} cy={pos.y * 5.2} r={radius + 8} className="td-map-glow" />
-              <circle cx={pos.x * 10} cy={pos.y * 5.2} r={radius} className="td-map-pin" />
-              <text x={pos.x * 10 + 10} y={pos.y * 5.2 - 8} className="td-map-label">
-                {loc.name}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardSnapshot | null>(null);
@@ -554,7 +474,7 @@ export default function DashboardPage() {
               </button>
             </div>
             <div className="td-location-split">
-              <LocationMap points={topLocations} maxAlerts={maxLocAlerts} />
+              <WorldMap points={data.byLocation} maxAlerts={maxLocAlerts} />
               <div className="td-country-list">
                 {topLocations.map((loc) => (
                   <div key={loc.name} className="td-country-row">

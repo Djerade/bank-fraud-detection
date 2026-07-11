@@ -14,7 +14,7 @@ def experiment_has_runs() -> bool:
     mlflow.set_tracking_uri(uri)
     exp = MlflowClient().get_experiment_by_name(name)
     if exp is None:
-        return Falése
+        return False
     return bool(
         MlflowClient().search_runs(experiment_ids=[exp.experiment_id], max_results=1)
     )

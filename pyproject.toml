@@ -37,6 +37,9 @@ docs = [
 ml = [
     "mlflow==2.19.0",
 ]
+test = [
+    "pytest==8.3.4",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

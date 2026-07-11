@@ -59,6 +59,8 @@ export type DashboardSnapshot = {
     name: string;
     alerts: number;
     ratePct: number;
+    /** [longitude, latitude] résolu dynamiquement depuis le nom reçu du flux, null si inconnu. */
+    coords: [number, number] | null;
   }>;
   scoreDistribution: Array<{
     bucket: string;

@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
@@ -102,6 +104,29 @@ def run_training(args: argparse.Namespace) -> None:
         for key in ("accuracy", "precision", "recall", "f1", "roc_auc"):
             mlflow.log_metric(f"best_{key}", float(best_row[key]))
 
+        # --- #1 Barrière de qualité : refuse de promouvoir un modèle sous les seuils ---
+        best_roc = float(best_row["roc_auc"])
+        best_f1 = float(best_row["f1"])
+        mlflow.log_param("gate_min_roc_auc", args.min_roc_auc)
+        mlflow.log_param("gate_min_f1", args.min_f1)
+        passed = best_roc >= args.min_roc_auc and best_f1 >= args.min_f1
+        mlflow.set_tag("quality_gate", "passed" if passed else "rejected")
+        if not passed:
+            msg = (
+                f"BARRIÈRE DE QUALITÉ ÉCHOUÉE : {best_name} "
+                f"ROC-AUC={best_roc:.4f} (min {args.min_roc_auc}), "
+                f"F1={best_f1:.4f} (min {args.min_f1}). "
+                "Modèle NON exporté, NON enregistré."
+            )
+            print(f"\n\033[31m{msg}\033[0m", file=sys.stderr)
+            if not args.allow_below_gate:
+                raise SystemExit(3)
+            print(
+                "\033[33m(FRAUD_ALLOW_BELOW_GATE actif : export forcé malgré l'échec — "
+                "à proscrire en production.)\033[0m",
+                file=sys.stderr,
+            )
+
         signature = infer_signature(X_train, best_pipe.predict(X_train))
         model_info = mlflow.sklearn.log_model(
             best_pipe,
@@ -110,6 +135,17 @@ def run_training(args: argparse.Namespace) -> None:
             registered_model_name="fraud-classifier" if args.register else None,
         )
         mlflow.set_tag("best_model", best_name)
+
+        # --- Promotion : seul un modèle qui PASSE le gate devient @champion (servi en prod) ---
+        if args.register and passed:
+            from mlflow.tracking import MlflowClient
+
+            version = model_info.registered_model_version
+            MlflowClient().set_registered_model_alias("fraud-classifier", "champion", version)
+            mlflow.set_tag("promoted", f"champion=v{version}")
+            print(f"  Promotion → fraud-classifier@champion = v{version}")
+        elif args.register:
+            print("  Non promu : gate échoué → @champion inchangé (dernier bon modèle conservé).")
 
         out_dir = Path(args.output_dir or repo_root() / "models")
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -130,6 +166,31 @@ def run_training(args: argparse.Namespace) -> None:
             stats_path.write_text(json.dumps(stats, indent=2))
             mlflow.log_artifact(str(stats_path), artifact_path="joblib_export")
             print(f"  global_stats → {stats_path.resolve()}")
+
+        # --- #3 Artefact atomique : carte de modèle décrivant l'export ---
+        metadata = {
+            "model": best_name,
+            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "mlflow_run_id": parent.info.run_id,
+            "dataset_rows": len(df),
+            "random_state": args.random_state,
+            "metrics": {
+                key: float(best_row[key])
+                for key in ("accuracy", "precision", "recall", "f1", "roc_auc")
+                if key in best_row
+            },
+            "quality_gate": {
+                "min_roc_auc": args.min_roc_auc,
+                "min_f1": args.min_f1,
+                "passed": passed,
+            },
+            # Le modèle est inexploitable sans ces deux fichiers : les versionner ensemble.
+            "requires": ["fraud_classifier.joblib", "global_stats.json"],
+        }
+        meta_path = out_dir / "model_metadata.json"
+        meta_path.write_text(json.dumps(metadata, indent=2))
+        mlflow.log_artifact(str(meta_path), artifact_path="joblib_export")
+        print(f"  model_metadata → {meta_path.resolve()}")
 
         print(f"Meilleur modèle : {best_name}")
         print(f"  ROC-AUC={best_row['roc_auc']:.4f}  F1={best_row['f1']:.4f}")
@@ -154,6 +215,25 @@ def main() -> None:
         "--register",
         action="store_true",
         help="Enregistre le meilleur modèle dans le Model Registry MLflow",
+    )
+    # --- #1 Barrière de qualité (surchargeable par env) ---
+    p.add_argument(
+        "--min-roc-auc",
+        type=float,
+        default=float(os.environ.get("FRAUD_MIN_ROC_AUC", "0.70")),
+        help="ROC-AUC minimal pour promouvoir le modèle (défaut 0.70 / FRAUD_MIN_ROC_AUC)",
+    )
+    p.add_argument(
+        "--min-f1",
+        type=float,
+        default=float(os.environ.get("FRAUD_MIN_F1", "0.0")),
+        help="F1 minimal pour promouvoir le modèle (défaut 0.0 / FRAUD_MIN_F1)",
+    )
+    p.add_argument(
+        "--allow-below-gate",
+        action="store_true",
+        default=os.environ.get("FRAUD_ALLOW_BELOW_GATE", "").strip() in ("1", "true", "yes"),
+        help="Exporte même si la barrière échoue (dev/démo uniquement).",
     )
     run_training(p.parse_args())
 

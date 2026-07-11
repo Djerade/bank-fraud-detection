@@ -11,4 +11,8 @@ VOLUME ["/mlflow"]
 
 # Un seul worker Gunicorn : moins de timeouts / OOM sur Docker Desktop avec peu de RAM.
 ENV MLFLOW_SERVER_WORKERS=1
-CMD ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "sqlite:////mlflow/db/mlflow.db", "--default-artifact-root", "/mlflow/artifacts", "--serve-artifacts", "--workers", "1"]
+# Artefacts PROXIFIÉS : les clients (train, backend) logent/chargent via HTTP
+# (schéma mlflow-artifacts:/) et le serveur persiste dans /mlflow/artifacts.
+# Indispensable en client-serveur : un --default-artifact-root en chemin local
+# ferait écrire les artefacts dans le conteneur client éphémère (perdus).
+CMD ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000", "--backend-store-uri", "sqlite:////mlflow/db/mlflow.db", "--artifacts-destination", "/mlflow/artifacts", "--serve-artifacts", "--workers", "1"]
