@@ -23,6 +23,14 @@ export function riskToneGlow(level: RiskLevel): string {
   return "#34d399";
 }
 
+/** Fond doux + texte lisible pour un badge de niveau, cohérent avec le thème actif. */
+export function riskBadgeStyle(level: RiskLevel): { color: string; background: string } {
+  if (level === "critical") return { color: "var(--td-red-text)", background: "var(--td-red-soft)" };
+  if (level === "high") return { color: "var(--td-orange-text)", background: "var(--td-orange-soft)" };
+  if (level === "medium") return { color: "var(--td-amber-text)", background: "var(--td-amber-soft)" };
+  return { color: "var(--td-lime-text)", background: "var(--td-lime)" };
+}
+
 export const RISK_LEGEND: Array<{ level: RiskLevel; label: string }> = [
   { level: "low", label: "Faible" },
   { level: "medium", label: "Moyen" },

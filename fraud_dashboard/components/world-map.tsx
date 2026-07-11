@@ -9,12 +9,8 @@ import type { DashboardSnapshot } from "@/lib/types";
 import { riskToneGlow, RISK_LEGEND, type RiskLevel } from "@/lib/risk";
 
 const WIDTH = 960;
-const HEIGHT = 460;
-
-const projection = geoNaturalEarth1().fitSize([WIDTH, HEIGHT], { type: "Sphere" });
-const pathGenerator = geoPath(projection);
-const graticulePath = pathGenerator(geoGraticule10()) ?? "";
-const spherePath = pathGenerator({ type: "Sphere" }) ?? "";
+const HEIGHT = 620;
+const MAP_PADDING = 42;
 
 const countryFeatures = feature(
   worldTopology as unknown as Topology,
@@ -43,6 +39,40 @@ export function WorldMap({ points, maxAlerts }: { points: LocationPoint[]; maxAl
   const clipId = useId();
   const [hovered, setHovered] = useState<string | null>(null);
 
+  /** Recentre et zoome sur les villes réellement actives plutôt que d'afficher le globe entier. */
+  const { pathGenerator, spherePath, graticulePath, projection } = useMemo(() => {
+    const proj = geoNaturalEarth1();
+    const pointFeatures = points
+      .filter((loc): loc is LocationPoint & { coords: [number, number] } => Boolean(loc.coords))
+      .map((loc) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: loc.coords },
+        properties: {}
+      }));
+    const uniqueCoords = new Set(pointFeatures.map((f) => f.geometry.coordinates.join(","))).size;
+
+    if (uniqueCoords > 1) {
+      proj.fitExtent(
+        [
+          [MAP_PADDING, MAP_PADDING],
+          [WIDTH - MAP_PADDING, HEIGHT - MAP_PADDING]
+        ],
+        { type: "FeatureCollection", features: pointFeatures }
+      );
+    } else {
+      // Pas assez de villes distinctes pour cadrer dessus : globe entier par défaut.
+      proj.fitSize([WIDTH, HEIGHT], { type: "Sphere" });
+    }
+
+    const gen = geoPath(proj);
+    return {
+      projection: proj,
+      pathGenerator: gen,
+      spherePath: gen({ type: "Sphere" }) ?? "",
+      graticulePath: gen(geoGraticule10()) ?? ""
+    };
+  }, [points]);
+
   const pins = useMemo(() => {
     const maxRate = Math.max(0.0001, ...points.map((loc) => loc.ratePct));
     return points
@@ -63,7 +93,7 @@ export function WorldMap({ points, maxAlerts }: { points: LocationPoint[]; maxAl
       })
       .filter((p): p is NonNullable<typeof p> => p !== null)
       .sort((a, b) => b.radius - a.radius);
-  }, [points, maxAlerts]);
+  }, [points, maxAlerts, projection]);
 
   const topPin = pins[0];
 
