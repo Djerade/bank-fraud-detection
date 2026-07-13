@@ -1,10 +1,19 @@
 "use client";
 
 import clsx from "clsx";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { DashboardSnapshot } from "@/lib/types";
-import { riskLevel, riskTone } from "@/lib/risk";
+import { riskBadgeStyle, riskLevel } from "@/lib/risk";
+import { nf, pct, minuteLabel } from "@/lib/format";
+import { IconTrend } from "@/lib/icons";
+import { useDashboardFeed } from "@/lib/use-dashboard-feed";
 import { WorldMap } from "@/components/world-map";
+import {
+  DashboardHeader,
+  DashboardLoadingSkeleton,
+  DashboardMetaBar,
+  DashboardTicker
+} from "@/components/dashboard-chrome";
 import {
   Area,
   AreaChart,
@@ -17,21 +26,7 @@ import {
   YAxis
 } from "recharts";
 
-function nf(value: number): string {
-  return new Intl.NumberFormat("fr-FR").format(value);
-}
-
-function pct(value: number, digits = 2): string {
-  return `${value.toFixed(digits)} %`;
-}
-
-function minuteLabel(v: string): string {
-  return new Date(v).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-}
-
 type TimeRange = "today" | "week" | "year";
-type ViewMode = "all" | "alerts";
-type Theme = "light" | "dark";
 
 function filteredSeries(series: DashboardSnapshot["series"], range: TimeRange) {
   if (series.length === 0) return series;
@@ -59,76 +54,6 @@ function downloadLocationsCsv(rows: DashboardSnapshot["byLocation"]) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-}
-
-function IconSearch() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="7" />
-      <path d="M20 20l-3-3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconBell() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" />
-      <path d="M13.73 21a2 2 0 01-3.46 0" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconSettings() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="3" />
-      <path
-        d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function IconSun() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="4" />
-      <path
-        d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function IconMoon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconShield() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z" />
-    </svg>
-  );
-}
-
-function IconTrend({ up }: { up: boolean }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      {up ? (
-        <path d="M6 15l6-6 6 6" strokeLinecap="round" strokeLinejoin="round" />
-      ) : (
-        <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-      )}
-    </svg>
-  );
 }
 
 function RiskGauge({ score, max = 5 }: { score: number; max?: number }) {
@@ -173,151 +98,14 @@ function RiskGauge({ score, max = 5 }: { score: number; max?: number }) {
 
 const AVATAR_HUES = ["#2563eb", "#7c3aed", "#db2777", "#059669", "#d97706"];
 
-function LoadingSkeleton({ error }: { error: string | null }) {
-  return (
-    <div className="td-skeleton-shell" aria-live="polite" aria-busy={!error}>
-      {error ? (
-        <div className="td-card td-loading err">Flux interrompu : {error}</div>
-      ) : (
-        <div className="td-card td-loading">Chargement du tableau de bord…</div>
-      )}
-      <div className="td-skeleton-row a">
-        <div className="td-skeleton-block" />
-        <div className="td-skeleton-block" />
-        <div className="td-skeleton-block" />
-      </div>
-      <div className="td-skeleton-row b">
-        <div className="td-skeleton-block" style={{ minHeight: 260 }} />
-        <div className="td-skeleton-block" style={{ minHeight: 260 }} />
-      </div>
-      <div className="td-skeleton-block" style={{ height: 200 }} />
-    </div>
-  );
-}
-
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
+  const { data, loading, error, refreshTick, deltaTotal, deltaAlerts } = useDashboardFeed();
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
-  const [viewMode, setViewMode] = useState<ViewMode>("all");
-  const [theme, setTheme] = useState<Theme>("light");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [notifOpen, setNotifOpen] = useState(false);
-  const prevMetricsRef = useRef<DashboardSnapshot["metrics"] | null>(null);
-  const [deltaTotal, setDeltaTotal] = useState<number | null>(null);
-  const [deltaAlerts, setDeltaAlerts] = useState<number | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let alive = true;
-
-    const load = async () => {
-      try {
-        const res = await fetch("/api/dashboard", { cache: "no-store" });
-        if (!res.ok) {
-          throw new Error(`API ${res.status}`);
-        }
-        const payload = (await res.json()) as DashboardSnapshot;
-        if (!alive) return;
-
-        const prev = prevMetricsRef.current;
-        if (prev) {
-          setDeltaTotal(payload.metrics.total - prev.total);
-          setDeltaAlerts(payload.metrics.alerts - prev.alerts);
-        } else {
-          setDeltaTotal(null);
-          setDeltaAlerts(null);
-        }
-        prevMetricsRef.current = payload.metrics;
-
-        setData(payload);
-        setError(null);
-        setLoading(false);
-      } catch (err) {
-        if (alive) {
-          setError(err instanceof Error ? err.message : "Erreur");
-          setLoading(false);
-        }
-      }
-    };
-
-    load();
-    const id = setInterval(load, 2000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => setRefreshTick((v) => v + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener("fullscreenchange", onChange);
-    const kiosk = new URLSearchParams(window.location.search).get("kiosk") === "1";
-    if (kiosk && !document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => undefined);
-    }
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
-
-  useEffect(() => {
-    const current = document.documentElement.getAttribute("data-theme");
-    setTheme(current === "dark" ? "dark" : "light");
-  }, []);
-
-  useEffect(() => {
-    if (searchOpen) searchInputRef.current?.focus();
-  }, [searchOpen]);
-
-  useEffect(() => {
-    if (!notifOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setNotifOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [notifOpen]);
-
-  const toggleFullscreen = useCallback(async () => {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen();
-    } else {
-      await document.exitFullscreen();
-    }
-  }, []);
-
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
-      const next: Theme = prev === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      try {
-        localStorage.setItem("td-theme", next);
-      } catch {
-        // stockage indisponible (navigation privée…) : le thème reste actif pour la session
-      }
-      return next;
-    });
-  }, []);
-
-  const closeSearch = useCallback(() => {
-    setSearchOpen(false);
-    setSearchQuery("");
-  }, []);
 
   const body = useMemo(() => {
     if (loading || !data) {
-      return <LoadingSkeleton error={error} />;
+      return <DashboardLoadingSkeleton error={error} />;
     }
 
     const threatIndex = Math.min(
@@ -333,21 +121,15 @@ export default function DashboardPage() {
       vol: row.volume
     }));
 
-    const baseTransactions =
-      viewMode === "alerts"
-        ? data.recentTransactions.filter((tx) => tx.fraud_predicted === 1)
-        : data.recentTransactions;
-
     const query = searchQuery.trim().toLowerCase();
     const tableTransactions = query
-      ? baseTransactions.filter(
+      ? data.recentTransactions.filter(
           (tx) =>
-            tx.transaction_id.toLowerCase().includes(query) ||
-            tx.transaction_location.toLowerCase().includes(query)
+            tx.transaction_id.toLowerCase().includes(query) || tx.transaction_location.toLowerCase().includes(query)
         )
-      : baseTransactions;
+      : data.recentTransactions;
 
-    const tickerItems = baseTransactions
+    const tickerItems = data.recentTransactions
       .slice(0, 22)
       .map((tx) => {
         const level = riskLevel(tx.fraud_score);
@@ -390,134 +172,15 @@ export default function DashboardPage() {
 
     return (
       <>
-        <header className="td-header">
-          <div className="td-brand">
-            <span className="td-brand-mark">
-              <IconShield />
-            </span>
-            FraudShield
-          </div>
+        <DashboardHeader data={data} searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
 
-          <nav className="td-nav" aria-label="Navigation principale">
-            <button type="button" className={clsx(viewMode === "all" && "is-active")} onClick={() => setViewMode("all")}>
-              Tableau de bord
-            </button>
-            <button
-              type="button"
-              className={clsx(viewMode === "alerts" && "is-active")}
-              onClick={() => setViewMode("alerts")}
-            >
-              Alertes
-            </button>
-            <button type="button" disabled title="Bientôt disponible">
-              Flux
-            </button>
-            <button type="button" disabled title="Bientôt disponible">
-              Rapports
-            </button>
-          </nav>
+        <DashboardTicker tag="TEMPS RÉEL" items={tickerItems || "Aucune transaction à afficher."} />
 
-          <div className="td-header-actions">
-            <div className="td-header-pop-wrap">
-              {searchOpen ? (
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  className="td-search-input"
-                  placeholder="ID transaction ou ville…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") closeSearch();
-                  }}
-                  onBlur={() => {
-                    if (!searchQuery) setSearchOpen(false);
-                  }}
-                  aria-label="Rechercher une transaction"
-                />
-              ) : (
-                <button type="button" className="td-icon-btn" aria-label="Rechercher" onClick={() => setSearchOpen(true)}>
-                  <IconSearch />
-                </button>
-              )}
-            </div>
-
-            <div className="td-header-pop-wrap" ref={notifRef}>
-              <button
-                type="button"
-                className={clsx("td-icon-btn", notifOpen && "is-on")}
-                aria-label="Notifications"
-                aria-expanded={notifOpen}
-                onClick={() => setNotifOpen((v) => !v)}
-                style={{ position: "relative" }}
-              >
-                <IconBell />
-                {data.metrics.criticalAlerts > 0 && <span className="td-badge-dot" aria-hidden />}
-              </button>
-              {notifOpen && (
-                <div className="td-header-pop" role="menu">
-                  <div className="td-header-pop-title">{nf(data.metrics.criticalAlerts)} alertes critiques</div>
-                  {data.criticalTransactions.length === 0 ? (
-                    <div className="td-header-pop-empty">Aucune alerte critique pour l&apos;instant.</div>
-                  ) : (
-                    data.criticalTransactions.slice(0, 5).map((tx) => (
-                      <div key={tx.transaction_id} className="td-notif-row">
-                        <div className="td-notif-row-top">
-                          <span>{tx.transaction_id}</span>
-                          <span style={{ color: riskTone("critical") }}>{tx.fraud_score.toFixed(3)}</span>
-                        </div>
-                        <div className="td-notif-row-sub">
-                          {tx.transaction_location} · {tx.transaction_type}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              className="td-icon-btn"
-              aria-label={theme === "dark" ? "Activer le thème clair" : "Activer le thème sombre"}
-              title={theme === "dark" ? "Thème clair" : "Thème sombre"}
-              onClick={toggleTheme}
-            >
-              {theme === "dark" ? <IconSun /> : <IconMoon />}
-            </button>
-
-            <button type="button" className="td-icon-btn" aria-label="Réglages" disabled title="Bientôt disponible">
-              <IconSettings />
-            </button>
-
-            <button
-              type="button"
-              className="td-icon-btn"
-              aria-label={isFullscreen ? "Quitter plein écran" : "Plein écran"}
-              onClick={toggleFullscreen}
-              title="Plein écran"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3" />
-              </svg>
-            </button>
-            <span className="td-avatar" aria-hidden />
-          </div>
-        </header>
-
-        <div className="td-ticker">
-          <div className="td-ticker-tag">{viewMode === "alerts" ? "ALERTES SEULEMENT" : "TEMPS RÉEL"}</div>
-          <div className="td-ticker-track">
-            <div className="td-ticker-inner">
-              {tickerItems || "Aucune transaction à afficher pour ce filtre."}
-            </div>
-          </div>
-        </div>
-
-        <div className="td-meta-bar">
-          Source <strong>{data.meta.source}</strong> · MAJ {new Date(data.meta.updatedAt).toLocaleString("fr-FR")} ·
-          Prochain rafraîchissement ~{nextRefreshIn}s
-        </div>
+        <DashboardMetaBar
+          source={data.meta.source}
+          updatedAt={data.meta.updatedAt}
+          nextRefreshIn={nextRefreshIn}
+        />
 
         <section className="td-row-a">
           <div className="td-kpi-stack">
@@ -757,67 +420,65 @@ export default function DashboardPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div className="td-card" id="td-journal">
-              <div className="td-card-head">
-                <div>
-                  <h3>Journal des transactions</h3>
-                  <div style={{ fontSize: 12, color: "var(--td-muted)", marginTop: 4 }}>
-                    {query || viewMode === "alerts"
-                      ? `${nf(tableTransactions.length)} résultat(s) filtré(s)`
-                      : "Dernières lignes scorées"}
-                  </div>
-                </div>
+        <section className="td-card" id="td-journal" style={{ marginTop: 18 }}>
+          <div className="td-card-head">
+            <div>
+              <h3>Journal des transactions</h3>
+              <div style={{ fontSize: 12, color: "var(--td-muted)", marginTop: 4 }}>
+                {query ? `${nf(tableTransactions.length)} résultat(s) filtré(s)` : "Dernières lignes scorées"}
               </div>
-              <div className="td-journal-list">
+            </div>
+          </div>
+          <div className="td-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Heure</th>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Ville</th>
+                  <th>Montant</th>
+                  <th>Score</th>
+                  <th>Niveau</th>
+                </tr>
+              </thead>
+              <tbody>
                 {tableTransactions.length === 0 ? (
-                  <div className="td-journal-empty">Aucune transaction ne correspond à ce filtre.</div>
+                  <tr>
+                    <td colSpan={7} className="td-journal-empty">
+                      Aucune transaction ne correspond à ce filtre.
+                    </td>
+                  </tr>
                 ) : (
                   tableTransactions.slice(0, 80).map((tx) => {
                     const level = riskLevel(tx.fraud_score);
                     return (
-                      <div key={`${tx.transaction_id}-${tx.timestamp}`} className="td-journal-row">
-                        <div className="td-journal-row-top">
-                          <span>{tx.transaction_id}</span>
+                      <tr key={`${tx.transaction_id}-${tx.timestamp}`}>
+                        <td>{new Date(tx.timestamp).toLocaleTimeString("fr-FR")}</td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{tx.transaction_id}</td>
+                        <td>{tx.transaction_type}</td>
+                        <td>{tx.transaction_location}</td>
+                        <td>{tx.transaction_amount_million.toFixed(2)}</td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{tx.fraud_score.toFixed(4)}</td>
+                        <td>
                           <span className="td-journal-badge" style={riskBadgeStyle(level)}>
                             {level.toUpperCase()}
                           </span>
-                        </div>
-                        <div className="td-journal-row-sub">
-                          <span>
-                            {new Date(tx.timestamp).toLocaleTimeString("fr-FR")} · {tx.transaction_type} ·{" "}
-                            {tx.transaction_location}
-                          </span>
-                          <span style={{ fontVariantNumeric: "tabular-nums" }}>{tx.fraud_score.toFixed(3)}</span>
-                        </div>
-                      </div>
+                        </td>
+                      </tr>
                     );
                   })
                 )}
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
         </section>
       </>
     );
-  }, [
-    data,
-    loading,
-    error,
-    timeRange,
-    refreshTick,
-    deltaTotal,
-    deltaAlerts,
-    isFullscreen,
-    toggleFullscreen,
-    viewMode,
-    theme,
-    toggleTheme,
-    searchOpen,
-    searchQuery,
-    closeSearch,
-    notifOpen
-  ]);
+  }, [data, loading, error, timeRange, refreshTick, deltaTotal, deltaAlerts, searchQuery]);
 
   return <main className="td-shell">{body}</main>;
 }

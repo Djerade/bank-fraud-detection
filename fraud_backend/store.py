@@ -10,7 +10,7 @@ import threading
 from collections import deque
 from datetime import datetime, timezone
 
-MAX_STORE = 6000
+MAX_STORE: int | None = None
 REFRESH_SECONDS = 2
 ALERT_THRESHOLD = 0.7
 
@@ -95,9 +95,9 @@ def normalize(raw: dict) -> dict | None:
 
 
 class Store:
-    """Tampon borné, thread-safe, des dernières transactions scorées."""
+    """Tampon thread-safe de l'historique complet des transactions scorées (mémoire du process)."""
 
-    def __init__(self, maxlen: int = MAX_STORE) -> None:
+    def __init__(self, maxlen: int | None = MAX_STORE) -> None:
         self._rows: deque[dict] = deque(maxlen=maxlen)
         self._lock = threading.Lock()
 

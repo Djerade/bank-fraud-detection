@@ -1,8 +1,9 @@
 """Compteurs de monitoring du scoring temps réel (thread-safe, cumulatifs).
 
-Exposés via ``GET /metrics`` — à la différence de ``/api/dashboard`` (fenêtre
-glissante de 6000 tx), ces compteurs sont cumulatifs depuis le démarrage et
-servent la supervision : débit, taux d'alerte, latence, erreurs, drift de score.
+Exposés via ``GET /metrics`` — à la différence de ``/api/dashboard`` (agrégé sur
+tout l'historique en mémoire du process), ces compteurs sont cumulatifs depuis
+le démarrage et servent la supervision : débit, taux d'alerte, latence, erreurs,
+drift de score.
 """
 from __future__ import annotations
 

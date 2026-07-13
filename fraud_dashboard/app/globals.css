@@ -153,7 +153,8 @@ body {
   border: 1px solid var(--td-border);
 }
 
-.td-nav button {
+.td-nav button,
+.td-nav a {
   border: none;
   background: transparent;
   cursor: pointer;
@@ -162,16 +163,19 @@ body {
   color: var(--td-muted);
   padding: 8px 16px;
   border-radius: 999px;
+  text-decoration: none;
   transition:
     background 0.15s,
     color 0.15s;
 }
 
-.td-nav button:hover {
+.td-nav button:hover,
+.td-nav a:hover {
   color: var(--td-text);
 }
 
-.td-nav button.is-active {
+.td-nav button.is-active,
+.td-nav a.is-active {
   background: var(--td-lime);
   color: var(--td-lime-text);
 }
@@ -485,6 +489,18 @@ body {
   gap: 14px;
 }
 
+.td-alerts-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 900px) {
+  .td-alerts-kpi-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .td-row-b {
   display: grid;
   grid-template-columns: 2.1fr 1fr;
@@ -556,89 +572,71 @@ body {
   border: 1px solid #1e293b;
   overflow: hidden;
   background: #0a1220;
-  min-height: 480px;
+  /* hauteur définie (pas juste min-height) : les enfants Leaflet en height:100%
+     (.td-leaflet-container) ne se résolvent que contre une hauteur définie. */
+  height: 480px;
   box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.35);
 }
 
 @media (max-width: 700px) {
   .td-geo-map {
-    min-height: 340px;
+    height: 340px;
   }
 }
 
-.td-geo-map svg {
+.td-geo-map-loading {
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.td-leaflet-container {
   width: 100%;
   height: 100%;
-  display: block;
+  background: #0a1220;
 }
 
-.td-graticule {
-  fill: none;
-  stroke: #24334d;
-  stroke-width: 0.5;
+/* Le fond/les contrôles Leaflet ont leur propre thème par défaut (clair) : on les
+   réaccorde avec la carte, qui reste volontairement sombre quel que soit le thème
+   de la page (écran-dans-l'écran, cf. .td-geo-map). */
+.leaflet-container {
+  background: #0a1220;
+  font-family: inherit;
 }
 
-.td-land {
-  fill: #1c2b45;
-  stroke: #2f4267;
-  stroke-width: 0.75;
+.leaflet-control-zoom a {
+  background: #121b2d;
+  color: #e2e8f0;
+  border-color: #1e293b !important;
 }
 
-.td-sphere-outline {
-  fill: none;
-  stroke: #2f4267;
-  stroke-width: 1.5;
+.leaflet-control-zoom a:hover {
+  background: #182338;
+  color: #fff;
 }
 
-.td-map-pin-group {
-  cursor: pointer;
+.leaflet-control-attribution {
+  background: rgba(10, 18, 32, 0.65);
+  color: #94a3b8;
 }
 
-.td-map-pin {
-  stroke: #0a1220;
-  stroke-width: 1.5;
-  transition: r 0.15s ease;
+.leaflet-control-attribution a {
+  color: #cbd5e1;
 }
 
-.td-map-pulse {
-  fill: none;
-  stroke-width: 1.5;
-  opacity: 0.7;
-  animation: tdPulse 1.6s ease-out infinite;
-}
-
-@keyframes tdPulse {
-  0% {
-    r: 10;
-    opacity: 0.65;
-  }
-  100% {
-    r: 26;
-    opacity: 0;
-  }
-}
-
-.td-map-label {
-  font-size: 12px;
-  fill: #e2e8f0;
-  font-weight: 600;
-  paint-order: stroke;
-  stroke: #0a1220;
-  stroke-width: 3px;
-  stroke-linejoin: round;
-}
-
-.td-map-tooltip {
-  position: absolute;
-  transform: translate(-50%, calc(-100% - 16px));
+.td-leaflet-tooltip.leaflet-tooltip {
   background: rgba(15, 23, 42, 0.96);
   border: 1px solid #334155;
   border-radius: 10px;
   padding: 8px 12px;
   min-width: 140px;
-  pointer-events: none;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
-  z-index: 2;
+  color: #f1f5f9;
+}
+
+.td-leaflet-tooltip.leaflet-tooltip-top:before {
+  border-top-color: #334155;
 }
 
 .td-map-tooltip-title {
@@ -664,6 +662,7 @@ body {
   position: absolute;
   left: 12px;
   bottom: 10px;
+  z-index: 1000;
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
@@ -790,44 +789,34 @@ body {
   margin-left: auto;
 }
 
-/* --- Journal (liste compacte, sidebar) --- */
+/* --- Journal (table horizontale, sous la carte) --- */
 
-.td-journal-list {
-  display: flex;
-  flex-direction: column;
+.td-table-wrap {
   max-height: 420px;
-  overflow-y: auto;
+  overflow: auto;
   border-radius: 12px;
   border: 1px solid var(--td-border);
 }
 
-.td-journal-row {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--td-border);
+.td-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.td-journal-row:last-child {
-  border-bottom: none;
-}
-
-.td-journal-row-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.td-table-wrap th,
+.td-table-wrap td {
   font-size: 12px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--td-border);
+  white-space: nowrap;
 }
 
-.td-journal-row-sub {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
+.td-table-wrap th {
+  position: sticky;
+  top: 0;
+  background: var(--td-card-alt);
+  font-weight: 600;
   color: var(--td-muted);
 }
 
@@ -845,6 +834,7 @@ body {
   text-align: center;
   color: var(--td-muted);
   font-size: 13px;
+  white-space: normal;
 }
 
 /* --- Meta footer --- */
